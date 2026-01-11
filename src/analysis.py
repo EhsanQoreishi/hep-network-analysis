@@ -2,6 +2,10 @@ import os
 import re
 import warnings
 from collections import defaultdict
+from itertools import combinations
+
+import networkx as nx
+import matplotlib.pyplot as plt
 
 
 # Suppress minor warnings for cleaner output
@@ -18,6 +22,7 @@ ABSTRACTS_DIR = 'data/cit-HepTh-abstracts'
 # ==========================================
 
 def parse_abstracts(root_dir):
+
     print(f"Scanning abstracts in {root_dir}...")
     
     paper_to_authors = defaultdict(list)
@@ -89,6 +94,56 @@ def parse_abstracts(root_dir):
     print(f"Parsed {len(paper_to_authors)} papers.")
     return paper_to_authors, paper_to_text, author_to_papers
 
+# ==========================================
+# 3. GRAPH CONSTRUCTION
+# ==========================================
+
+def build_networks(edges_file, paper_to_authors):
+
+    print("Building Author Networks...")
+    G_co = nx.Graph()    # Co-authorship
+    G_cit = nx.DiGraph() # Citation
+    
+    # --- Layer 1: Co-authorship ---
+    for paper, authors in paper_to_authors.items():
+        if len(authors) > 1:
+            for u, v in combinations(authors, 2):
+                if G_co.has_edge(u, v):
+                    G_co[u][v]['weight'] += 1
+                else:
+                    G_co.add_edge(u, v, weight=1)
+
+    # --- Layer 2: Citation ---
+    print("Processing citation edges...")
+    try:
+        with open(edges_file, 'r') as f:
+            for line in f:
+                if line.startswith('#'): continue
+                parts = line.split()
+                if len(parts) < 2: continue
+                
+                source_paper = parts[0]
+                target_paper = parts[1]
+                
+                source_auths = paper_to_authors.get(source_paper, [])
+                target_auths = paper_to_authors.get(target_paper, [])
+                
+                for sa in source_auths:
+                    for ta in target_auths:
+                        if sa == ta: continue
+                        if G_cit.has_edge(sa, ta):
+                            G_cit[sa][ta]['weight'] += 1
+                        else:
+                            G_cit.add_edge(sa, ta, weight=1)
+                            
+    except FileNotFoundError:
+        print(f"Error: Could not find {edges_file}")
+        return None, None
+
+    print(f"Co-authorship Graph: {G_co.number_of_nodes()} nodes, {G_co.number_of_edges()} edges")
+    print(f"Citation Graph: {G_cit.number_of_nodes()} nodes, {G_cit.number_of_edges()} edges")
+    return G_co, G_cit
+
 
 # ==========================================
 # MAIN EXECUTION
@@ -97,6 +152,8 @@ if __name__ == "__main__":
     if os.path.exists(ABSTRACTS_DIR) and os.path.exists(EDGES_FILE):
 
         p2a, p2t, a2p = parse_abstracts(ABSTRACTS_DIR)
+        
+        G_co, G_cit = build_networks(EDGES_FILE, p2a)
         
 
     else:
