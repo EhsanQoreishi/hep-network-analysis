@@ -1,11 +1,2 @@
-# Ignore data files
-data/
-*.txt
-*.abs
-
-# Ignore Python cache
-__pycache__/
-*.pyc
-
 # Ignore system files
 .DS_Store
