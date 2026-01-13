@@ -5,7 +5,10 @@ from collections import defaultdict
 from itertools import combinations
 
 import networkx as nx
+import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer, ENGLISH_STOP_WORDS
+from community import community_louvain
 
 
 # Suppress minor warnings for cleaner output
@@ -146,6 +149,141 @@ def build_networks(edges_file, paper_to_authors):
 
 
 # ==========================================
+# 4. ANALYSIS FUNCTIONS
+# ==========================================
+
+def analyze_layer_shortest_paths(G_cit, G_co):
+
+    print("\n--- Cross-Layer Path Analysis ---")
+    distances = []
+    
+    sample_edges = list(G_cit.edges())
+
+    valid_pairs = 0
+    for u, v in sample_edges:
+        if u in G_co and v in G_co:
+            try:
+                d = nx.shortest_path_length(G_co, source=u, target=v)
+                distances.append(d)
+                valid_pairs += 1
+            except nx.NetworkXNoPath:
+                distances.append(-1) 
+    
+    reachable_distances = [d for d in distances if d != -1]
+    avg_dist = np.mean(reachable_distances) if reachable_distances else 0
+    
+    print(f"Analyzed {valid_pairs} pairs connected in Citation layer.")
+    print(f"Average Co-authorship distance for these pairs: {avg_dist:.2f}")
+    
+    plt.figure(figsize=(8, 5))
+    plt.hist([d if d != -1 else max(reachable_distances)+1 for d in distances], 
+             bins=range(0, max(reachable_distances)+3), alpha=0.7, color='skyblue', edgecolor='black')
+    plt.title("Distance in Co-authorship Layer for Citation-Connected Pairs")
+    plt.xlabel("Shortest Path Length (Co-authorship)")
+    plt.ylabel("Frequency")
+    plt.axvline(avg_dist, color='red', linestyle='dashed', linewidth=1, label=f'Avg: {avg_dist:.2f}')
+    plt.legend()
+    plt.show()
+
+def analyze_communities_and_topics(G, author_to_papers, paper_to_text):
+
+    print("\n--- Community Detection & Topic Extraction ---")
+    
+    G_undir = G.to_undirected()
+    partition = community_louvain.best_partition(G_undir)
+    
+    communities = defaultdict(list)
+    for node, comm_id in partition.items():
+        communities[comm_id].append(node)
+        
+    sorted_comms = sorted(communities.items(), key=lambda x: len(x[1]), reverse=True)
+    top_comms = sorted_comms[:5] 
+    
+    print(f"Detected {len(communities)} communities.")
+    
+    # Custom stop words for HEP domain
+    custom_stop_words = [
+        'english', 'date', 'gmt', 'comments', 'pages', 'title', 'authors', 
+        'paper', 'abstract', 'report', 'no', 'hep', 'th', 'theory', 'phys', 
+        'university', 'department', 'lat', 'mon', 'tue', 'wed', 'thu', 'fri', 
+        'dec', 'nov', 'oct', 'sep', 'jan', 'feb', 'mar', 'apr', 'jun', 'jul',
+        'cern', 'fermilab', 'slac', 'caltech' 
+    ]
+    stop_words = list(ENGLISH_STOP_WORDS.union(custom_stop_words))
+    tfidf = TfidfVectorizer(stop_words=stop_words, max_features=10)
+    
+    for comm_id, authors in top_comms:
+        comm_text = []
+        for author in authors:
+            papers = author_to_papers.get(author, [])
+            for pid in papers:
+                if pid in paper_to_text:
+                    comm_text.append(paper_to_text[pid])
+        
+        full_text = " ".join(comm_text)
+        
+        try:
+            response = tfidf.fit_transform([full_text])
+            feature_names = tfidf.get_feature_names_out()
+            indices = np.argsort(tfidf.idf_)[::-1]
+            
+            print(f"\nCommunity {comm_id} (Size: {len(authors)} authors):")
+            print(f"Top Keywords: {', '.join(feature_names)}") 
+        except ValueError:
+            print(f"Community {comm_id}: Not enough text data.")
+
+def print_top_authors(G_co, G_cit):
+
+    print("\n--- Centrality Analysis ---")
+    
+    top_connected = sorted(dict(G_co.degree()).items(), key=lambda x: x[1], reverse=True)[:5]
+    print("Most Collaborative (High Degree):")
+    for author, degree in top_connected:
+        print(f"  - {author}: {degree} co-authors")
+        
+    top_cited = sorted(dict(G_cit.in_degree()).items(), key=lambda x: x[1], reverse=True)[:5]
+    print("\nMost Influential (High Citations):")
+    for author, degree in top_cited:
+        print(f"  - {author}: {degree} citations")
+
+# ==========================================
+# 5. VISUALIZATION
+# ==========================================
+
+def visualize_network(G, title="Co-authorship Network (Top 500 Nodes)"):
+
+    print("\n--- Generating Network Visualization ---")
+    
+    N = 500 
+    degrees = dict(G.degree())
+    top_nodes = sorted(degrees, key=degrees.get, reverse=True)[:N]
+    G_sub = G.subgraph(top_nodes)
+    
+    print(f"Visualizing subgraph with {G_sub.number_of_nodes()} nodes...")
+
+    pos = nx.spring_layout(G_sub, k=0.15, seed=42)
+    partition = community_louvain.best_partition(G_sub)
+    cmap = plt.get_cmap('viridis')
+    
+    plt.figure(figsize=(12, 12))
+    
+    nx.draw_networkx_nodes(G_sub, pos, 
+                           node_size=[v * 10 for v in dict(G_sub.degree()).values()], 
+                           cmap=cmap, 
+                           node_color=list(partition.values()), 
+                           alpha=0.8)
+    
+    nx.draw_networkx_edges(G_sub, pos, alpha=0.3, edge_color='gray')
+    
+    top_10 = sorted(degrees, key=degrees.get, reverse=True)[:10]
+    labels = {node: node for node in top_10 if node in G_sub.nodes()}
+    nx.draw_networkx_labels(G_sub, pos, labels=labels, font_size=12, font_weight='bold', font_color='black')
+    
+    plt.title(title)
+    plt.axis('off')
+    plt.show()
+
+# ==========================================
 # MAIN EXECUTION
 # ==========================================
 if __name__ == "__main__":
@@ -155,6 +293,11 @@ if __name__ == "__main__":
         
         G_co, G_cit = build_networks(EDGES_FILE, p2a)
         
-
+        if G_co and G_cit:
+            analyze_layer_shortest_paths(G_cit, G_co)
+            analyze_communities_and_topics(G_co, a2p, p2t)
+            print_top_authors(G_co, G_cit)
+            
+            visualize_network(G_co)
     else:
         print(f"Data files not found.\nPlease ensure '{EDGES_FILE}' and '{ABSTRACTS_DIR}' are in the script directory.")
