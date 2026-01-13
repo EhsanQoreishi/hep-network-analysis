@@ -250,11 +250,11 @@ def print_top_authors(G_co, G_cit):
 # 5. VISUALIZATION
 # ==========================================
 
-def visualize_network(G, title="Co-authorship Network (Top 500 Nodes)"):
+def visualize_network(G, title="Co-authorship Network (Top 1000 Nodes)"):
 
     print("\n--- Generating Network Visualization ---")
     
-    N = 500 
+    N = 1000 
     degrees = dict(G.degree())
     top_nodes = sorted(degrees, key=degrees.get, reverse=True)[:N]
     G_sub = G.subgraph(top_nodes)
@@ -283,6 +283,23 @@ def visualize_network(G, title="Co-authorship Network (Top 500 Nodes)"):
     plt.axis('off')
     plt.show()
 
+def print_global_metrics(G):
+    print("\n--- Global Graph Metrics ---")
+    
+    # 1. Edge Density (How connected is the graph?)
+    density = nx.density(G)
+    print(f"Edge Density: {density:.6f}")
+    
+    # 2. Transitivity (Global Clustering Coefficient)
+    # (Measures how often friends of friends are also friends)
+    transitivity = nx.transitivity(G)
+    print(f"Global Clustering Coeff (Transitivity): {transitivity:.4f}")
+    
+    # 3. Average Clustering (Local level average)
+    avg_clustering = nx.average_clustering(G)
+    print(f"Average Clustering Coefficient: {avg_clustering:.4f}")
+
+
 # ==========================================
 # MAIN EXECUTION
 # ==========================================
@@ -295,6 +312,7 @@ if __name__ == "__main__":
         
         if G_co and G_cit:
             analyze_layer_shortest_paths(G_cit, G_co)
+            print_global_metrics(G_co)  
             analyze_communities_and_topics(G_co, a2p, p2t)
             print_top_authors(G_co, G_cit)
             
