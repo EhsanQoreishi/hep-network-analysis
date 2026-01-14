@@ -21,18 +21,18 @@ This project performs a structural analysis of the High Energy Physics - Theory 
 
 ## Visualizations
 
-### 1. Interactive Network Visualization
-Click the image below to explore the interactive graph (zoom, pan, and hover over nodes to see connections):
-
-[![Interactive Graph Preview](results/interactive_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/hep_network_interactive.html)
-*(Note: This links to a live HTML page hosted on GitHub Pages. Requires a modern web browser.)*
-
-### 2. Cross-Layer Social Distance
+### 1. Cross-Layer Social Distance
 This histogram shows the shortest path length in the Co-authorship graph for every pair of authors connected in the Citation graph. The average distance is **3.40**, suggesting that influence in HEP-Th spreads through relatively tight social circles.
 
-![Social Distance Histogram](results/path_distribution.png)
+![Social Distance Histogram](output/path_distribution.png)
 *(Figure: Distribution of shortest path lengths between citing authors. Dashed line represents the mean.)*
 
+### 2. Co-authorship Network Structure
+A force-directed visualization of the top 500 most connected authors. Colors represent distinct communities detected by the Louvain algorithm.
+
+
+[![Interactive Graph Preview](output/interactive_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/hep_network_interactive.html)
+*(Note: This links to a live HTML page hosted on GitHub Pages. Requires a modern web browser.)*
 ## Usage
 1.  Install dependencies:
     ```bash
