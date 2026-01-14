@@ -12,26 +12,26 @@ This project performs a structural analysis of the High Energy Physics - Theory 
 * **Topic Modeling:** Applies **Global TF-IDF** (trained on the full corpus) to extract mathematically distinct keywords for each community (e.g., "Chern-Simons", "Supergravity").
 * **Cross-Layer Analysis:** Computes the "social distance" (shortest path in co-authorship) between authors who cite each other.
 
-## Results
-* **Nodes:** ~9,782 Authors (cleaned and normalized) 
-* **Edges:** ~23,518 Co-authorship connections 
-* **Communities Detected:** 700 (distinct research sub-fields) 
-* **Avg Social Distance for Citations:** 3.40 steps (indicating citations closely follow social ties) 
-* **Top Influencer:** E. Witten (Highest weighted citation impact: ~7776) 
+## Results (Latest Run)
+* **Nodes:** ~9,782 Authors (cleaned and normalized)
+* **Edges:** ~23,518 Co-authorship connections
+* **Communities Detected:** 701 (distinct research sub-fields)
+* **Avg Social Distance for Citations:** 3.40 steps (indicating citations closely follow social ties)
+* **Top Influencer:** E. Witten (Highest weighted citation impact: ~7776)
 
 ## Visualizations
 
-### 1. Cross-Layer Social Distance
+### 1. Interactive Network Visualization
+Click the image below to explore the interactive graph (zoom, pan, and hover over nodes to see connections):
+
+[![Interactive Graph Preview](results/interactive_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/hep_network_interactive.html)
+*(Note: This links to a live HTML page hosted on GitHub Pages. Requires a modern web browser.)*
+
+### 2. Cross-Layer Social Distance
 This histogram shows the shortest path length in the Co-authorship graph for every pair of authors connected in the Citation graph. The average distance is **3.40**, suggesting that influence in HEP-Th spreads through relatively tight social circles.
 
-![Social Distance Histogram](output/path_distribution.png)
+![Social Distance Histogram](results/path_distribution.png)
 *(Figure: Distribution of shortest path lengths between citing authors. Dashed line represents the mean.)*
-
-### 2. Co-authorship Network Structure
-A force-directed visualization of the top 1,000 most connected authors. Colors represent distinct communities detected by the Louvain algorithm.
-
-![Network Graph](output/network_graph.png)
-*(Figure: Top 1000 nodes colored by community. Key clusters include String Theory (Community 1) and Topological Field Theory (Community 53).)*
 
 ## Usage
 1.  Install dependencies:

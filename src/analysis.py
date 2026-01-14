@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer, ENGLISH_STOP_WORDS
 from community import community_louvain
+from pyvis.network import Network
 
 
 # Suppress minor warnings for cleaner output
@@ -277,38 +278,30 @@ def print_top_authors(G_co, G_cit):
 # 5. VISUALIZATION
 # ==========================================
 
-def visualize_network(G, title="Co-authorship Network (Top 1000 Nodes)"):
-
-    print("\n--- Generating Network Visualization ---")
+def visualize_network(G, title="hep_network_interactive.html"):
+    print("\n--- Generating Interactive Network Visualization ---")
     
-    N = 1000 
     degrees = dict(G.degree())
-    top_nodes = sorted(degrees, key=degrees.get, reverse=True)[:N]
+    top_nodes = sorted(degrees, key=degrees.get, reverse=True)[:500]
     G_sub = G.subgraph(top_nodes)
     
-    print(f"Visualizing subgraph with {G_sub.number_of_nodes()} nodes...")
-
-    pos = nx.spring_layout(G_sub, k=0.15, seed=42)
+    net = Network(height="750px", width="100%", bgcolor="#222222", font_color="white")
+    
     partition = community_louvain.best_partition(G_sub)
-    cmap = plt.get_cmap('viridis')
     
-    plt.figure(figsize=(12, 12))
+    for node in G_sub.nodes():
+        comm_id = partition[node]
+        degree = degrees[node]
+        net.add_node(node, label=node, title=f"Neighbors: {degree}", 
+                     value=degree, group=comm_id)
     
-    nx.draw_networkx_nodes(G_sub, pos, 
-                           node_size=[v * 10 for v in dict(G_sub.degree()).values()], 
-                           cmap=cmap, 
-                           node_color=list(partition.values()), 
-                           alpha=0.8)
+    for u, v in G_sub.edges():
+        net.add_edge(u, v, color='#555555')
+        
+    net.force_atlas_2based()
     
-    nx.draw_networkx_edges(G_sub, pos, alpha=0.3, edge_color='gray')
-    
-    top_10 = sorted(degrees, key=degrees.get, reverse=True)[:10]
-    labels = {node: node for node in top_10 if node in G_sub.nodes()}
-    nx.draw_networkx_labels(G_sub, pos, labels=labels, font_size=12, font_weight='bold', font_color='black')
-    
-    plt.title(title)
-    plt.axis('off')
-    plt.show()
+    net.save_graph(title)
+    print(f"Graph saved to {title}. Open this file in your browser.")
 
 def print_global_metrics(G):
     print("\n--- Global Graph Metrics ---")
