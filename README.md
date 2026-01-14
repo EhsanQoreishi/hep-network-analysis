@@ -31,7 +31,7 @@ This histogram shows the shortest path length in the Co-authorship graph for eve
 A force-directed visualization of the top 500 most connected authors. Colors represent distinct communities detected by the Louvain algorithm.
 
 
-[![Interactive Graph Preview](output/interactive_preview.png)](https://github.com/EhsanQoreishi/hep-network-analysis/blob/main/hep_network_interactive.html)
+[![Interactive Graph Preview](output/interactive_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/hep_network_interactive.html)
 *(Note: This links to a live HTML page hosted on GitHub Pages. Requires a modern web browser.)*
 ## Usage
 1.  Install dependencies:
