@@ -4,21 +4,41 @@
 This project performs a structural analysis of the High Energy Physics - Theory (Hep-Th) citation and co-authorship networks from the arXiv dataset. It explores the social structure of scientific collaboration and the flow of citations using Graph Theory and Natural Language Processing (NLP).
 
 ## Key Features
-* **Data Parsing:** robust parsing of semi-structured arXiv abstract files.
-* **Network Construction:** Builds both undirected Co-authorship and directed Citation graphs.
+* **Robust Data Parsing:** Custom pipeline with regex to clean false positives (e.g., removing affiliations like "Italy") and normalize author names (e.g., merging "Edward Witten" -> "E. Witten").
+* **Dual-Layer Network Construction:**
+    * **Co-authorship:** Undirected, unweighted graph of collaboration.
+    * **Citation:** Directed graph with **fractional weighting** (1/N authors) to prevent combinatorial bias in large collaborations.
 * **Community Detection:** Uses the **Louvain algorithm** to identify social research cliques.
-* **Topic Modeling:** Applies **TF-IDF** to extract dominant keywords for each community (e.g., "String Theory", "Branes").
-* **Layer Analysis:** Computes the "social distance" between authors who cite each other.
+* **Topic Modeling:** Applies **Global TF-IDF** (trained on the full corpus) to extract mathematically distinct keywords for each community (e.g., "Chern-Simons", "Supergravity").
+* **Cross-Layer Analysis:** Computes the "social distance" (shortest path in co-authorship) between authors who cite each other.
 
 ## Results
-* **Nodes:** ~14,000 Authors
-* **Communities Detected:** 1,340 (indicating highly fragmented collaborative groups).
-* **Global Clustering Coefficient:** 0.50 (High social clustering).
-* **Top Influencer:** Edward Witten (Highest citation count).
+* **Nodes:** ~9,782 Authors (cleaned and normalized) 
+* **Edges:** ~23,518 Co-authorship connections 
+* **Communities Detected:** 700 (distinct research sub-fields) 
+* **Avg Social Distance for Citations:** 3.40 steps (indicating citations closely follow social ties) 
+* **Top Influencer:** E. Witten (Highest weighted citation impact: ~7776) 
 
 ## Visualizations
-The project generates force-directed graph visualizations to reveal the "hairball" structure of top collaborations and histograms of path lengths.
+
+### 1. Cross-Layer Social Distance
+This histogram shows the shortest path length in the Co-authorship graph for every pair of authors connected in the Citation graph. The average distance is **3.40**, suggesting that influence in HEP-Th spreads through relatively tight social circles.
+
+![Social Distance Histogram](output/path_distribution.png)
+*(Figure: Distribution of shortest path lengths between citing authors. Dashed line represents the mean.)*
+
+### 2. Co-authorship Network Structure
+A force-directed visualization of the top 1,000 most connected authors. Colors represent distinct communities detected by the Louvain algorithm.
+
+![Network Graph](output/network_graph.png)
+*(Figure: Top 1000 nodes colored by community. Key clusters include String Theory (Community 1) and Topological Field Theory (Community 53).)*
 
 ## Usage
-1.  Install dependencies: `pip install -r requirements.txt`
-2.  Run analysis: `python src/analysis.py`
+1.  Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+2.  Run analysis:
+    ```bash
+    python src/analysis.py
+    ```

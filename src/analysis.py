@@ -24,6 +24,15 @@ ABSTRACTS_DIR = 'data/cit-HepTh-abstracts'
 # 2. DATA PARSING
 # ==========================================
 
+def normalize_name(name):
+    parts = name.split()
+    if len(parts) < 2:
+        return name
+    
+    last_name = parts[-1]
+    first_initial = parts[0][0]
+    return f"{first_initial}. {last_name}"
+
 def parse_abstracts(root_dir):
 
     print(f"Scanning abstracts in {root_dir}...")
@@ -32,15 +41,13 @@ def parse_abstracts(root_dir):
     paper_to_text = {}
     author_to_papers = defaultdict(list)
     
-    # Common non-author words found in the dataset to filter out
-    BLACKLIST = {
-        'italy', 'germany', 'france', 'spain', 'russia', 'usa', 'japan', 'uk', 'england', 
-        'canada', 'switzerland', 'brazil', 'india', 'china', 'korea', 'australia', 
-        'mexico', 'israel', 'netherlands', 'belgium', 'sweden', 'denmark', 'finland',
-        'norway', 'poland', 'austria', 'greece', 'portugal', 'hungary', 'czech republic',
-        'moscow', 'rome', 'paris', 'london', 'cambridge', 'oxford', 'berlin', 'cern', 'trieste',
-        'university', 'institute', 'department', 'physics', 'caltech', 'mit', 'princeton'
-    }
+    NON_AUTHOR_TERMS = {
+                            'italy', 'germany', 'france', 'spain', 'russia', 'usa', 'japan', 'uk', 
+                            'england', 'canada', 'switzerland', 'brazil', 'india', 'china', 'korea',
+                            'australia', 'mexico', 'israel', 'netherlands', 'belgium', 'sweden', 
+                            'cern', 'trieste', 'moscow', 'rome', 'paris', 'london', 'berlin', 'madrid',
+                            'caltech', 'mit', 'stanford', 'harvard', 'princeton', 'cambridge'
+                        }
 
     for root, dirs, files in os.walk(root_dir):
         for file in files:
@@ -54,31 +61,31 @@ def parse_abstracts(root_dir):
                 with open(path, 'r', encoding='latin-1') as f:
                     content = f.read()
                     
-                    # --- Author Parsing ---
                     auth_match = re.search(r'Authors?:\s*(.+?)(?=\n(?:Comments|Journal-ref|Subj-class|\\)|$)', content, re.DOTALL | re.IGNORECASE)
 
                     if auth_match:
-                        # Flatten newlines and remove parentheses (affiliations)
                         raw_authors = auth_match.group(1).replace('\n', ' ')
                         raw_authors = re.sub(r'\(.*?\)', '', raw_authors)
                         
-                        # Split by comma or 'and'
-                        authors = re.split(r',|\sand\s', raw_authors)
+                        authors = re.split(r',|\sand\s|;', raw_authors)
+                        
                         
                         cleaned_authors = []
                         for a in authors:
                             name = a.strip()
                             if len(name) <= 1: continue
-                            if name.lower() in BLACKLIST: continue
-                            if "university" in name.lower() or "institute" in name.lower(): continue
                             
-                            cleaned_authors.append(name)
+                            if any(x in name.lower() for x in ["university", "institute", "collab", "group", "department", "physic"]): continue
+                            
+                            if name.lower() in NON_AUTHOR_TERMS: continue
+                            
+                            normalized_name = normalize_name(name)
+                            cleaned_authors.append(normalized_name)
                         
                         paper_to_authors[paper_id] = cleaned_authors
                         for auth in cleaned_authors:
                             author_to_papers[auth].append(paper_id)
                     
-                    # --- Abstract Parsing ---
                     parts = content.split('\\\\')
                     abstract_candidate = ""
                     if len(parts) >= 3:
@@ -131,13 +138,19 @@ def build_networks(edges_file, paper_to_authors):
                 source_auths = paper_to_authors.get(source_paper, [])
                 target_auths = paper_to_authors.get(target_paper, [])
                 
-                for sa in source_auths:
-                    for ta in target_auths:
-                        if sa == ta: continue
-                        if G_cit.has_edge(sa, ta):
-                            G_cit[sa][ta]['weight'] += 1
-                        else:
-                            G_cit.add_edge(sa, ta, weight=1)
+                # Apply fractional weighting
+                # If Paper A (5 authors) cites Paper B (2 authors), total weight 1 is distributed among 10 edges.
+                if len(source_auths) > 0 and len(target_auths) > 0:
+                    weight = 1.0 / (len(source_auths) * len(target_auths))
+                
+                    for sa in source_auths:
+                        for ta in target_auths:
+                            if sa == ta: continue
+                            
+                            if G_cit.has_edge(sa, ta):
+                                G_cit[sa][ta]['weight'] += weight
+                            else:
+                                G_cit.add_edge(sa, ta, weight=weight)
                             
     except FileNotFoundError:
         print(f"Error: Could not find {edges_file}")
@@ -210,7 +223,16 @@ def analyze_communities_and_topics(G, author_to_papers, paper_to_text):
         'cern', 'fermilab', 'slac', 'caltech' 
     ]
     stop_words = list(ENGLISH_STOP_WORDS.union(custom_stop_words))
-    tfidf = TfidfVectorizer(stop_words=stop_words, max_features=10)
+    # Fitting the model on ALL papers first to learn global word importance
+    all_abstracts = list(paper_to_text.values())
+    if not all_abstracts:
+        print("No abstract text found for TF-IDF.")
+        return
+
+    # Increaseing max_features so we have a pool to choose from
+    tfidf = TfidfVectorizer(stop_words=stop_words, max_features=5000)
+    tfidf.fit(all_abstracts)
+    feature_names = np.array(tfidf.get_feature_names_out())
     
     for comm_id, authors in top_comms:
         comm_text = []
@@ -222,15 +244,20 @@ def analyze_communities_and_topics(G, author_to_papers, paper_to_text):
         
         full_text = " ".join(comm_text)
         
-        try:
-            response = tfidf.fit_transform([full_text])
-            feature_names = tfidf.get_feature_names_out()
-            indices = np.argsort(tfidf.idf_)[::-1]
-            
-            print(f"\nCommunity {comm_id} (Size: {len(authors)} authors):")
-            print(f"Top Keywords: {', '.join(feature_names)}") 
-        except ValueError:
+        if not full_text.strip():
             print(f"Community {comm_id}: Not enough text data.")
+            continue
+
+        response = tfidf.transform([full_text])
+        
+        scores = response.toarray().flatten()
+        top_indices = scores.argsort()[::-1][:10]
+        top_keywords = feature_names[top_indices]
+            
+        print(f"\nCommunity {comm_id} (Size: {len(authors)} authors):")
+        print(f"Top Keywords: {', '.join(top_keywords)}")
+
+
 
 def print_top_authors(G_co, G_cit):
 
@@ -241,7 +268,7 @@ def print_top_authors(G_co, G_cit):
     for author, degree in top_connected:
         print(f"  - {author}: {degree} co-authors")
         
-    top_cited = sorted(dict(G_cit.in_degree()).items(), key=lambda x: x[1], reverse=True)[:5]
+    top_cited = sorted(dict(G_cit.in_degree(weight='weight')).items(), key=lambda x: x[1], reverse=True)[:5]
     print("\nMost Influential (High Citations):")
     for author, degree in top_cited:
         print(f"  - {author}: {degree} citations")
