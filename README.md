@@ -27,12 +27,12 @@ This histogram shows the shortest path length in the Co-authorship graph for eve
 ![Social Distance Histogram](output/path_distribution.png)
 *(Figure: Distribution of shortest path lengths between citing authors. Dashed line represents the mean.)*
 
-### 2. Co-authorship Network Structure
-A force-directed visualization of the top 500 most connected authors. Colors represent distinct communities detected by the Louvain algorithm.
-
+### 1. Interactive Network Visualization
+Click the image below to explore the interactive graph (zoom, pan, and hover over nodes to see connections):
 
 [![Interactive Graph Preview](output/interactive_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/hep_network_interactive.html)
 *(Note: This links to a live HTML page hosted on GitHub Pages. Requires a modern web browser.)*
+
 ## Usage
 1.  Install dependencies:
     ```bash
