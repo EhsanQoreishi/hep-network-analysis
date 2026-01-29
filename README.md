@@ -1,86 +1,128 @@
-# HEP-TH Network Analysis: Topology of the Theoretical Physics Community
-**Course:** Complex Networks (Module 2) - Physics of Complex Systems (Unibo)
-**Author:** Ehsan Qoreishi
+# High-Energy Physics Network Analysis (HEP-Th)
 
-## 1. Project Overview
-This project analyzes the **High Energy Physics (HEP-TH)** collaboration network using data from ArXiv (1993–2003). By modeling authors as nodes and collaborations as edges, we investigate the fundamental topological properties that drive scientific discovery.
+A computational physics project analyzing the structure, dynamics, and social properties of the ArXiv High-Energy Physics Theory (HEP-Th) citation network.
 
-The study focuses on identifying **Small-World** properties, **Scale-Free** behavior, and the semantic nature of **Community Structure** using Natural Language Processing (NLP).
+This project implements a reproducible pipeline to Extract, Transform, and Load (ETL) raw arXiv data, construct multi-layer networks (citation and co-authorship), and apply statistical mechanics metrics (Power Laws, Spectral Entropy) to understand scientific collaboration.
 
----
+## 🕸️ Network Visualization
 
-## 2. Methodology & Data Cleaning
-A critical step in this analysis was the purification of the raw dataset. The original data contained "ghost nodes"—affiliation strings (e.g., "CERN", "University of Pisa") masquerading as authors.
+Below is a preview of the **Giant Component** of the co-authorship network.
+*(Click the image to open the full interactive visualization if hosted, or check `results/interactive_map.html` locally)*
 
-* **Custom NLP Parser:** I implemented a strict filtering pipeline to distinguish human names from institutions.
-* **Impact:** The cleaning process removed **~4,000 artifacts** (40% of the original graph), reducing the network from 9,782 to **5,993 verified authors**. This ensured that the calculated metrics reflect real human social dynamics, not data noise.
+![Network Preview](results/map_preview.png)
+*> **Note:** To see this preview, take a screenshot of your `interactive_map.html`, save it as `map_preview.png` inside the `results/` folder, and push it to GitHub.*
 
----
+## 🚀 Features
 
-## 3. Statistical Analysis & Results
+* **Data Parsing**: Custom ETL pipeline to parse unstructured `.abs` abstract files and edge lists.
+* **Network Construction**: Builds both **Citation** (Directed) and **Co-authorship** (Undirected/Weighted) graphs.
+* **Physics Analysis**:
+    * **Scale-Free Dynamics**: Statistical fitting of degree distributions to Power Law ($P(k) \sim k^{-\gamma}$).
+    * **Spectral Properties**: Computation of Von Neumann Entropy and Algebraic Connectivity ($\lambda_2$) using the Graph Laplacian.
+    * **Robustness**: Simulation of random failures vs. targeted attacks (percolation theory).
+* **Automation**: Full workflow managed by **Snakemake**.
 
-### A. Small-World Properties (The Watts-Strogatz Indicator)
-The network exhibits a massive **Small-World Coefficient ($\sigma$)**, confirming that the physics community is highly interconnected.
+## 📂 Project Structure
 
-| Metric | Real Network (GCC) | Random Graph (Erdős-Rényi) | Interpretation |
-| :--- | :--- | :--- | :--- |
-| **Avg Clustering ($C$)** | **0.4280** | 0.0005 | **High Clustering:** If Scientist A collaborates with B and C, there is a 43% chance B and C also collaborate. |
-| **Avg Path Length ($L$)** | **6.07** | 5.67 | **Short Paths:** Information spreads globally in just ~6 steps ("Six Degrees of Separation"). |
-| **Sigma ($\sigma$)** | **806.84** | 1.0 | **Verdict:** $\sigma \gg 1$ confirms a robust Small-World architecture. |
+    .
+    ├── data/                   # Raw datasets
+    ├── logs/                   # Execution logs
+    ├── results/                # Generated scientific outputs
+    ├── src/                    # Source code modules
+    │   ├── analysis/           # Physics & Topology logic
+    │   │   ├── communities.py  # Louvain community detection
+    │   │   ├── physics.py      # Power laws & Robustness
+    │   │   └── structural.py   # Centrality & Path metrics
+    │   ├── constants.py        # Project-wide constants
+    │   ├── networks.py         # Graph construction logic
+    │   ├── preprocessing.py    # ETL & Text cleaning
+    │   └── visualization.py    # Plotting & PyVis generation
+    ├── tests/                  # Pytest suite
+    ├── environment.yml         # Conda environment definition
+    ├── main.py                 # CLI entry point
+    └── Snakefile               # Automated workflow pipeline
 
-### B. Scale-Free Structure (Hubs)
-The degree distribution follows a clear **Power Law** ($P(k) \sim k^{-\gamma}$), classifying the network as **Scale-Free**.
+## 🛠️ Installation
 
-* **The Hubs:** The network is held together by a few "super-connected" individuals.
-    * **Top Collaborators:** S. Ferrara (52), C. Vafa (51).
-    * **Top Cited:** E. Witten (~7,000 citations).
-* **Visual Evidence:** The linear tail in the log-log plot below confirms the power-law behavior.
+This project uses **Conda** for environment management and is optimized for Apple Silicon (M1/M2/M3) and standard architectures.
 
-![Degree Distribution](Screenshot 2026-01-18 at 17.30.57.jpg)
-*(Figure 1: Log-Log plot of author degrees showing Scale-Free tail)*
-
-### C. Community Structure & Hierarchy
-Using the **Louvain Algorithm**, we detected **455 distinct communities**. The size distribution reveals a strict hierarchy:
-
-1.  **Macro-Communities (The "Big 5"):** A small core of ~15 groups contains >100 members each.
-    * *Example:* Community 1 (Size 359) corresponds to the **String Theory/Branes** core (verified via TF-IDF keyword extraction).
-2.  **Micro-Communities:** The distribution is heavily skewed; **368 communities (80%)** have fewer than 5 members. This reflects the reality of academic research: a few massive paradigm-defining schools surrounded by hundreds of isolated, niche research groups.
-
-![Community Sizes](Screenshot 2026-01-18 at 17.31.24.jpg)
-*(Figure 2: Histogram of Community Sizes showing the hierarchical structure)*
-
-### D. Cross-Layer Dynamics (Social vs. Information Flow)
-We analyzed the social distance between papers that cite each other.
-* **Socially Embedded:** The peak at **3-4 steps** shows that most citations happen between socially connected authors.
-* **The "Discovery Spike":** The anomalous bar at **$x \approx 14$** represents citations crossing between disconnected social components. These are the "long-range bridges" where scientific ideas jump across socially isolated sub-fields.
-
-![Path Lengths](Screenshot 2026-01-18 at 17.30.48.jpg)
-
----
-
-## 4. Conclusion
-The HEP collaboration network is a robust **Small-World ($\sigma \approx 800$)** and **Scale-Free** system. The analysis proves that while the community is socially fragmented into hundreds of small groups, it remains globally connected through a few "super-hub" authors and shared semantic interests, allowing for rapid information propagation across the discipline.
-
-## Visualizations
-
-### 1. Cross-Layer Social Distance
-This histogram shows the shortest path length in the Co-authorship graph for every pair of authors connected in the Citation graph. The average distance is **3.40**, suggesting that influence in HEP-Th spreads through relatively tight social circles.
-
-![Social Distance Histogram](output/path_distribution.png)
-*(Figure: Distribution of shortest path lengths between citing authors. Dashed line represents the mean.)*
-
-### 1. Interactive Network Visualization
-Click the image below to explore the interactive graph (zoom, pan, and hover over nodes to see connections):
-
-[![Interactive Graph Preview](output/interactive_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/hep_network_interactive.html)
-*(Note: This links to a live HTML page hosted on GitHub Pages. Requires a modern web browser.)*
-
-## Usage
-1.  Install dependencies:
+1.  **Clone the repository:**
     ```bash
-    pip install -r requirements.txt
+    git clone [https://github.com/your-username/hep-network-analysis.git](https://github.com/your-username/hep-network-analysis.git)
+    cd hep-network-analysis
     ```
-2.  Run analysis:
+
+2.  **Create the environment:**
     ```bash
-    python src/analysis.py
+    conda env create -f environment.yml
     ```
+
+3.  **Activate the environment:**
+    ```bash
+    conda activate hep_network_analysis
+    ```
+
+## 📊 Usage
+
+### Automated Pipeline (Recommended)
+This project uses **Snakemake** to automate the entire analysis. It checks for file changes and only runs necessary steps.
+
+```bash
+snakemake -c1
+
+* `-c1`: Uses 1 CPU core. Increase this (e.g., `-c4`) for parallel execution.
+
+### Manual Execution (CLI)
+You can also run the script manually with custom arguments:
+
+```bash
+python main.py --data data/cit-HepTh.txt --abstracts data/cit-HepTh-abstracts --output results/
+```
+
+## ✅ Testing
+
+Strict software engineering standards are enforced using `pytest`. The suite covers data cleaning logic, network integrity, and physics calculations.
+
+To run the tests:
+```bash
+python -m pytest tests/
+```
+
+## 📈 Key Results
+
+The pipeline generates the following scientific outputs in the `results/` folder:
+
+* **`interactive_map.html`**: A zoomable, searchable visualization of the collaboration network using PyVis.
+* **`social_layer_power_law_fit.png`**: Log-log plot of the degree distribution, verifying the scale-free nature of the network.
+* **`spectral_density_entropy.png`**: The eigenvalue spectrum of the graph Laplacian, used to calculate Von Neumann entropy ($S_{VN}$).
+* **`network_robustness.png`**: A percolation plot comparing network disintegration under **Random Failures** vs. **Targeted Hub Attacks**.
+* **`multiplex_centrality_correlation.png`**: Correlation analysis between centrality metrics across citation and co-authorship layers.
+
+## 🔬 Scientific Results & Interpretation
+
+The automated pipeline generates the following physics analysis in the `results/` folder:
+
+### 1. Scale-Free Topology (`social_layer_power_law_fit.png`)
+The degree distribution $P(k)$ of the collaboration network fits a **Power Law** ($P(k) \propto k^{-\gamma}$), confirming the **Scale-Free** nature of scientific collaboration.
+* **Observation:** A straight line on the log-log plot indicates that a few "hub" authors have a disproportionately large number of collaborators (preferential attachment).
+* **Implication:** The network is driven by a "rich-get-richer" mechanism where established scientists attract more new connections than isolated ones.
+
+### 2. Network Robustness & Percolation (`network_robustness.png`)
+We simulate network disintegration to test resilience:
+* **Random Failures:** The Giant Component size remains stable when nodes are removed randomly. This confirms the network is **robust to errors**.
+* **Targeted Attacks:** The network collapses rapidly when high-degree nodes (hubs) are removed. This reveals a critical **fragility to targeted attacks**.
+
+### 3. Spectral Properties (`spectral_density_entropy.png`)
+The spectrum of the Graph Laplacian is analyzed to compute the **Von Neumann Entropy** ($S_{VN}$).
+* **Algebraic Connectivity ($\lambda_2$):** The non-zero second eigenvalue indicates the network is connected (at the giant component level).
+* **Entropy:** The calculated entropy value reflects the structural complexity and the presence of community clusters within the graph.
+
+### 4. Community Structure (`interactive_map.html`)
+Using the **Louvain algorithm**, we detect distinct communities (colored clusters in the map).
+* These communities likely correspond to specific sub-fields within High Energy Physics (e.g., String Theory vs. Phenomenology).
+* The visualization highlights the "Small-World" property: dense local clustering with short path lengths connecting distant nodes.
+
+## 📚 Data Source
+
+* **Citation Network**: [SNAP: ArXiv HEP-TH](https://snap.stanford.edu/data/cit-HepTh.html)
+* **Abstracts**: [Cornell ArXiv Metadata](https://arxiv.org/help/bulk_data)

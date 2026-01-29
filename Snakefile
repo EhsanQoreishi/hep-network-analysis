@@ -8,15 +8,13 @@ RESULTS_DIR = "results"
 SCRIPT = "main.py"
 
 # --- Target Rule ---
-# Defines the files we expect the pipeline to generate
+# Defines the final files we expect to see upon success
 rule all:
     input:
         f"{RESULTS_DIR}/interactive_map.html",
         f"{RESULTS_DIR}/social_layer_power_law_fit.png",
         f"{RESULTS_DIR}/spectral_density_entropy.png",
-        f"{RESULTS_DIR}/network_robustness.png",
-        f"{RESULTS_DIR}/configuration_model_comparison.png",
-        f"{RESULTS_DIR}/multiplex_centrality_correlation.png"
+        f"{RESULTS_DIR}/network_robustness.png"
 
 # --- Analysis Rule ---
 # Executes main.py if data or code has changed
@@ -29,9 +27,7 @@ rule run_analysis:
         f"{RESULTS_DIR}/interactive_map.html",
         f"{RESULTS_DIR}/social_layer_power_law_fit.png",
         f"{RESULTS_DIR}/spectral_density_entropy.png",
-        f"{RESULTS_DIR}/network_robustness.png",
-        f"{RESULTS_DIR}/configuration_model_comparison.png",
-        f"{RESULTS_DIR}/multiplex_centrality_correlation.png"
+        f"{RESULTS_DIR}/network_robustness.png"
     log:
         "logs/analysis.log"
     shell:

@@ -25,14 +25,42 @@ from src.preprocessing import parse_abstracts
 from src.visualization import visualize_network
 
 
-def setup_logging(debug_mode: bool = False) -> None:
-    """Configures the logging format and level."""
-    level = logging.DEBUG if debug_mode else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-        handlers=[logging.StreamHandler(sys.stdout)],
+def setup_logging(debug_mode: bool = False):
+    """
+    Configures a dual-logging system:
+    1. Console: Clean high-level info (INFO).
+    2. run_info.log: Clean high-level info (INFO).
+    3. run_debug.log: Detailed technical logs (DEBUG).
+    """
+    os.makedirs("logs", exist_ok=True)
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    logger.handlers = []
+
+    simple_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    verbose_formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
+    info_handler = logging.FileHandler("logs/run_info.log", mode="w")
+    info_handler.setLevel(logging.INFO)
+    info_handler.setFormatter(simple_formatter)
+    logger.addHandler(info_handler)
+
+    debug_handler = logging.FileHandler("logs/run_debug.log", mode="w")
+    debug_handler.setLevel(logging.DEBUG)
+    debug_handler.setFormatter(verbose_formatter)
+    logger.addHandler(debug_handler)
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_level = logging.DEBUG if debug_mode else logging.INFO
+    console_handler.setLevel(console_level)
+    console_handler.setFormatter(simple_formatter)
+    logger.addHandler(console_handler)
+
+    logging.info(
+        "Logging initialized: Info -> logs/run_info.log | Debug -> logs/run_debug.log"
     )
 
 
