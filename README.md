@@ -7,10 +7,10 @@ This project implements a reproducible pipeline to Extract, Transform, and Load 
 ## 🕸️ Network Visualization
 
 Below is a preview of the **Giant Component** of the co-authorship network.
-*(Click the image to open the full interactive visualization if hosted, or check `results/interactive_map.html` locally)*
+*(Click the image to open the full interactive visualization if hosted)*
 
-![Network Preview](results/map_preview.png)
-*> **Note:** To see this preview, take a screenshot of your `interactive_map.html`, save it as `map_preview.png` inside the `results/` folder, and push it to GitHub.*
+[![Interactive Graph Preview](output/interactive_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/results/interactive_map.html)
+
 
 ## 🚀 Features
 
@@ -48,7 +48,7 @@ This project uses **Conda** for environment management and is optimized for Appl
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/your-username/hep-network-analysis.git](https://github.com/your-username/hep-network-analysis.git)
+    git clone https://github.com/EhsanQoreishi/hep-network-analysis.git
     cd hep-network-analysis
     ```
 
@@ -69,7 +69,7 @@ This project uses **Snakemake** to automate the entire analysis. It checks for f
 
 ```bash
 snakemake -c1
-
+```
 * `-c1`: Uses 1 CPU core. Increase this (e.g., `-c4`) for parallel execution.
 
 ### Manual Execution (CLI)
@@ -85,18 +85,8 @@ Strict software engineering standards are enforced using `pytest`. The suite cov
 
 To run the tests:
 ```bash
-python -m pytest tests/
+pytest tests/  
 ```
-
-## 📈 Key Results
-
-The pipeline generates the following scientific outputs in the `results/` folder:
-
-* **`interactive_map.html`**: A zoomable, searchable visualization of the collaboration network using PyVis.
-* **`social_layer_power_law_fit.png`**: Log-log plot of the degree distribution, verifying the scale-free nature of the network.
-* **`spectral_density_entropy.png`**: The eigenvalue spectrum of the graph Laplacian, used to calculate Von Neumann entropy ($S_{VN}$).
-* **`network_robustness.png`**: A percolation plot comparing network disintegration under **Random Failures** vs. **Targeted Hub Attacks**.
-* **`multiplex_centrality_correlation.png`**: Correlation analysis between centrality metrics across citation and co-authorship layers.
 
 ## 🔬 Scientific Results & Interpretation
 
