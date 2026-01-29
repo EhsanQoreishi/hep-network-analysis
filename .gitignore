@@ -1,2 +1,12 @@
-# Ignore system files
+__pycache__/
+*.py[cod]
+*$py.class
 .DS_Store
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+env/
+.conda/
+.snakemake/
+.vscode/
+.idea/

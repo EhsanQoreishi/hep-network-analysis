@@ -9,11 +9,11 @@ This package contains modules for:
 
 # 1. Structural Metrics (Descriptive Statistics)
 from .structural import (
-    print_global_metrics,
-    print_top_authors,
+    get_global_metrics,
+    get_top_authors,
     analyze_layer_shortest_paths,
     analyze_strength_distribution,
-    analyze_multiplex_correlation
+    analyze_multiplex_correlation,
 )
 
 # 2. Physics & Complex Systems (Advanced Analysis)
@@ -21,7 +21,7 @@ from .physics import (
     analyze_power_law,
     analyze_spectral_properties,
     analyze_robustness,
-    analyze_configuration_model
+    analyze_configuration_model,
 )
 
 # 3. Community Detection & NLP (Mesoscale Structure)
@@ -29,3 +29,20 @@ from .communities import (
     check_community_distribution,
     analyze_communities_robust
 )
+
+__all__ = [
+    # Structural
+    "get_global_metrics",
+    "get_top_authors",
+    "analyze_layer_shortest_paths",
+    "analyze_strength_distribution",
+    "analyze_multiplex_correlation",
+    # Physics
+    "analyze_power_law",
+    "analyze_spectral_properties",
+    "analyze_robustness",
+    "analyze_configuration_model",
+    # Communities
+    "check_community_distribution",
+    "analyze_communities_robust",
+]

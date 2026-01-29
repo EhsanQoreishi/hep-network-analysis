@@ -1,104 +1,137 @@
+import logging
 import os
+from typing import Dict, List, Tuple
+
+import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.stats import spearmanr
-from typing import Dict, List, Optional, Tuple
 
-def print_global_metrics(G: nx.Graph) -> None:
+logger = logging.getLogger(__name__)
+
+
+def get_global_metrics(G: nx.Graph) -> Dict[str, float]:
     """
-    Computes and prints standard topological metrics.
-    
+    Computes standard topological metrics.
+
     Metrics:
     - Density: Ratio of actual edges to possible edges.
     - Transitivity: Global clustering (fraction of closed triplets).
     - Avg Clustering: Mean of local clustering coefficients.
+
+    Returns:
+        Dict: Contains 'nodes', 'edges', 'density', 'transitivity', 'avg_clustering'.
     """
-    print("\n--- Global Graph Metrics ---")
-    n_nodes = G.number_of_nodes()
-    n_edges = G.number_of_edges()
-    
-    print(f"Nodes: {n_nodes}, Edges: {n_edges}")
-    
-    density = nx.density(G)
-    print(f"Edge Density: {density:.6f}")
+    logger.info("--- Global Graph Metrics ---")
 
-    transitivity = nx.transitivity(G)
-    print(f"Global Clustering Coeff (Transitivity): {transitivity:.4f}")
+    metrics = {
+        "nodes": G.number_of_nodes(),
+        "edges": G.number_of_edges(),
+        "density": nx.density(G),
+        "transitivity": nx.transitivity(G),
+        "avg_clustering": nx.average_clustering(G),
+    }
 
-    avg_clustering = nx.average_clustering(G)
-    print(f"Average Clustering Coefficient: {avg_clustering:.4f}")
+    logger.info(f"Nodes: {metrics['nodes']}, Edges: {metrics['edges']}")
+    logger.info(f"Edge Density: {metrics['density']:.6f}")
+    logger.info(
+        f"Global Clustering Coeff (Transitivity): {metrics['transitivity']:.4f}"
+    )
+    logger.info(f"Average Clustering Coefficient: {metrics['avg_clustering']:.4f}")
 
-def print_top_authors(G_co: nx.Graph, G_cit: nx.DiGraph) -> None:
+    return metrics
+
+
+def get_top_authors(
+    G_co: nx.Graph, G_cit: nx.DiGraph
+) -> Dict[str, List[Tuple[str, float]]]:
     """
     Identifies top authors by Degree (Social) and In-Degree (Citation).
     Also calculates Betweenness Centrality to find 'bridges'.
+
+    Returns:
+        Dict: Lists of top authors for 'collaborative', 'influential', and 'bridges'.
     """
-    print("\n--- Centrality Analysis ---")
+    logger.info("--- Centrality Analysis ---")
 
     # 1. Degree Centrality (Hubs)
-    top_connected = sorted(
-        G_co.degree(), key=lambda x: x[1], reverse=True
-    )[:5]
-    print("Most Collaborative (High Degree):")
+    # Note: Sorting dict items is efficient enough here; no complex vectorization needed for top-k
+    top_connected = sorted(G_co.degree(), key=lambda x: x[1], reverse=True)[:5]
+
+    logger.info("Most Collaborative (High Degree):")
     for author, degree in top_connected:
-        print(f"  - {author}: {degree} co-authors")
+        logger.info(f"  - {author}: {degree} co-authors")
 
     # 2. Citation Influence (Authorities)
-    # Using 'weight' accounts for the strength of citation flow
     top_cited = sorted(
         G_cit.in_degree(weight="weight"), key=lambda x: x[1], reverse=True
     )[:5]
-    print("\nMost Influential (High Citations):")
+
+    logger.info("Most Influential (High Citations):")
     for author, count in top_cited:
-        print(f"  - {author}: {count:.1f} citations")
+        logger.info(f"  - {author}: {count:.1f} citations")
 
     # 3. Betweenness Centrality (Bridges)
-    print("\nCalculating Betweenness Centrality (this may take a moment)...")
-    try:
-        # We use 'distance' (1/shared_papers) because betweenness looks for shortest paths.
-        # k=500 approximation is used for speed on large graphs. Remove k for exact results.
-        betweenness = nx.betweenness_centrality(G_co, weight='distance', k=500)
-        
-        top_bridges = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:5]
-        print("Top Bridges (High Betweenness - Interdisciplinary Connectors):")
-        for author, score in top_bridges:
-            print(f"  - {author}: {score:.4f}")
-            
-    except KeyError:
-        print("  [Error] 'distance' attribute missing on edges.")
+    logger.info("Calculating Betweenness Centrality (this may take a moment)...")
+    top_bridges = []
 
-def analyze_layer_shortest_paths(G_cit: nx.DiGraph, G_co: nx.Graph, output_dir: str = "results") -> float:
+    try:
+        # k=500 approximation for speed on large graphs
+        betweenness = nx.betweenness_centrality(G_co, weight="distance", k=500)
+        top_bridges = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:5]
+
+        logger.info("Top Bridges (High Betweenness):")
+        for author, score in top_bridges:
+            logger.info(f"  - {author}: {score:.4f}")
+
+    except (KeyError, ValueError) as e:
+        logger.error(f"Error calculating betweenness: {e}")
+
+    return {
+        "collaborative": top_connected,
+        "influential": top_cited,
+        "bridges": top_bridges,
+    }
+
+
+def analyze_layer_shortest_paths(
+    G_cit: nx.DiGraph, G_co: nx.Graph, output_dir: str = "results"
+) -> float:
     """
-    Calculates the social distance (co-authorship path) between authors 
+    Calculates the social distance (co-authorship path) between authors
     who have a direct citation link.
     """
-    print("\n--- Cross-Layer Path Analysis ---")
+    logger.info("--- Cross-Layer Path Analysis ---")
+
+    # Pre-filter nodes to avoid repeated dictionary lookups in the loop
+    social_nodes = set(G_co.nodes())
+
+    # Identify valid citation edges where both nodes exist in social layer
+    # Vectorization note: Shortest path is inherently sequential per pair,
+    # but we filter the edge list first.
+    valid_edges = [
+        (u, v) for u, v in G_cit.edges() if u in social_nodes and v in social_nodes
+    ]
+
     distances = []
-    
-    # Analyze citation edges to see if they follow social lines
-    valid_pairs = 0
-    for u, v in G_cit.edges():
-        if u in G_co and v in G_co:
-            try:
-                # Weighted Shortest Path in Social Layer
-                d = nx.shortest_path_length(G_co, source=u, target=v, weight='distance')
-                distances.append(d)
-                valid_pairs += 1
-            except nx.NetworkXNoPath:
-                distances.append(-1)
+    for u, v in valid_edges:
+        try:
+            d = nx.shortest_path_length(G_co, source=u, target=v, weight="distance")
+            distances.append(d)
+        except nx.NetworkXNoPath:
+            continue
 
-    reachable_distances = [d for d in distances if d != -1]
-    avg_dist = np.mean(reachable_distances) if reachable_distances else 0.0
+    avg_dist = np.mean(distances) if distances else 0.0
 
-    print(f"Analyzed {valid_pairs} pairs connected in Citation layer.")
-    print(f"Average Co-authorship distance for these pairs: {avg_dist:.2f}")
+    logger.info(f"Analyzed {len(distances)} valid pairs connected in Citation layer.")
+    logger.info(f"Average Co-authorship distance for these pairs: {avg_dist:.2f}")
 
-    # Plot histogram
+    # Plot
+    os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=(8, 5))
     plt.hist(
-        reachable_distances, 
-        bins=50,             
+        distances,
+        bins=50,
         alpha=0.7,
         color="skyblue",
         edgecolor="black",
@@ -115,92 +148,116 @@ def analyze_layer_shortest_paths(G_cit: nx.DiGraph, G_co: nx.Graph, output_dir: 
 
     return float(avg_dist)
 
-def analyze_strength_distribution(G: nx.Graph, name: str = "Network", output_dir: str = "results") -> None:
+
+def analyze_strength_distribution(
+    G: nx.Graph, name: str = "Network", output_dir: str = "results"
+) -> Dict[str, float]:
     """
     Analyzes the correlation between Node Strength (s) and Degree (k).
-    s ~ k^beta. 
-    beta > 1 implies 'Rich-Club' behavior (hubs have stronger ties).
+    s ~ k^beta.
     """
-    print(f"\n--- Weighted Strength Analysis ({name}) ---")
-    
-    strengths = dict(G.degree(weight='weight'))
-    degrees = dict(G.degree(weight=None))
-    
-    s_values = np.array(list(strengths.values()))
-    k_values = np.array([degrees[n] for n in strengths.keys()])
-    
-    # Filter zeros
-    valid_mask = (k_values > 0) & (s_values > 0)
-    k_values = k_values[valid_mask]
-    s_values = s_values[valid_mask]
+    logger.info(f"--- Weighted Strength Analysis ({name}) ---")
 
-    # Calculate average strength per degree class for clean fitting
+    # Extract metrics using list comprehensions (faster than dict iteration)
+    degrees = dict(G.degree())
+    strengths = dict(G.degree(weight="weight"))
+
+    # Vectorize inputs
+    nodes = list(G.nodes())
+    k_values = np.array([degrees[n] for n in nodes])
+    s_values = np.array([strengths[n] for n in nodes])
+
+    # Boolean masking to filter zeros
+    mask = (k_values > 0) & (s_values > 0)
+    k_values = k_values[mask]
+    s_values = s_values[mask]
+
+    # Calculate average strength per degree class
     k_unique = np.unique(k_values)
-    s_avg_k = []
-    for k in k_unique:
-        mean_s = np.mean(s_values[k_values == k])
-        s_avg_k.append(mean_s)
-    
-    # Fit Power Law: s ~ A * k^beta
+    # Vectorized calculation of means per group is complex without pandas,
+    # keeping the explicit loop over unique k is cleaner for pure numpy here.
+    s_avg_k = np.array([np.mean(s_values[k_values == k]) for k in k_unique])
+
+    # Fit Power Law: log(s) ~ beta * log(k) + intercept
     log_k = np.log10(k_unique)
     log_s = np.log10(s_avg_k)
     beta, intercept = np.polyfit(log_k, log_s, 1)
-    
+
+    logger.info(f"  Fit exponent (beta): {beta:.4f}")
+    if beta > 1.1:
+        logger.info("  -> Super-linear (beta > 1): Hubs work harder/more intensely.")
+
     # Plot
+    os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=(8, 6))
-    plt.scatter(k_values, s_values, alpha=0.1, color='gray', s=10, label='Nodes')
-    plt.loglog(k_unique, s_avg_k, 'bo', label='Average <s(k)>')
-    
+    plt.scatter(k_values, s_values, alpha=0.1, color="gray", s=10, label="Nodes")
+    plt.loglog(k_unique, s_avg_k, "bo", label="Average <s(k)>")
+
     fit_y = 10**intercept * k_unique**beta
-    plt.plot(k_unique, fit_y, 'r--', linewidth=2, label=f'Fit: $\\beta = {beta:.2f}$')
-    
-    plt.title(f"Strength vs Degree Correlation")
+    plt.plot(k_unique, fit_y, "r--", linewidth=2, label=f"Fit: $\\beta = {beta:.2f}$")
+
+    plt.title("Strength vs Degree Correlation")
     plt.xlabel("Degree k")
     plt.ylabel("Strength s")
     plt.legend()
     plt.grid(True, alpha=0.3)
-    
-    save_path = os.path.join(output_dir, f"{name.lower()}_strength_degree_correlation.png")
+
+    save_path = os.path.join(
+        output_dir, f"{name.lower()}_strength_degree_correlation.png"
+    )
     plt.savefig(save_path)
     plt.close()
-    
-    print(f"  Fit exponent (beta): {beta:.4f}")
-    if beta > 1.1:
-        print(f"  -> Super-linear (beta > 1): Hubs work harder/more intensely.")
 
-def analyze_multiplex_correlation(G_co: nx.Graph, G_cit: nx.DiGraph, output_dir: str = "results") -> None:
+    return {"beta": beta, "intercept": intercept}
+
+
+def analyze_multiplex_correlation(
+    G_co: nx.Graph, G_cit: nx.DiGraph, output_dir: str = "results"
+) -> Dict[str, float]:
     """
     Correlates Citation Influence (PageRank) with Social Brokerage (Betweenness).
     """
-    print("\n--- Multiplex Correlation Analysis ---")
+    logger.info("--- Multiplex Correlation Analysis ---")
 
     common_authors = list(set(G_co.nodes()).intersection(set(G_cit.nodes())))
     if len(common_authors) < 10:
-        print("Not enough common authors for correlation.")
-        return
+        logger.warning("Not enough common authors for correlation.")
+        return {"correlation": 0.0, "p_value": 1.0}
 
-    # Calculate metrics
     pagerank = nx.pagerank(G_cit, weight="weight")
-    # k=None for exact, or int for approx
-    betweenness = nx.betweenness_centrality(G_co, weight="distance", k=min(len(common_authors), 500))
+    # k=min(...) ensures we don't over-sample small graphs
+    k_sample = min(len(common_authors), 500)
+    betweenness = nx.betweenness_centrality(G_co, weight="distance", k=k_sample)
 
-    x_data = [pagerank.get(a, 0) for a in common_authors]
-    y_data = [betweenness.get(a, 0) for a in common_authors]
+    # Convert to arrays for vectorized filtering
+    x_data = np.array([pagerank.get(a, 0) for a in common_authors])
+    y_data = np.array([betweenness.get(a, 0) for a in common_authors])
 
     corr, p_value = spearmanr(x_data, y_data)
 
-    print(f"  Spearman Correlation: {corr:.4f} (p={p_value:.4e})")
+    logger.info(f"  Spearman Correlation: {corr:.4f} (p={p_value:.4e})")
 
-    # Hexbin Plot for density
-    x_plot = [x for x, y in zip(x_data, y_data) if x > 0 and y > 0]
-    y_plot = [y for x, y in zip(x_data, y_data) if x > 0 and y > 0]
+    # Filter for plotting (log scale hates zeros)
+    mask = (x_data > 0) & (y_data > 0)
+    x_plot = x_data[mask]
+    y_plot = y_data[mask]
 
+    os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=(10, 7))
-    hb = plt.hexbin(
-        x_plot, y_plot,
-        gridsize=30, cmap="inferno", bins="log", xscale="log", yscale="log"
-    )
-    plt.colorbar(hb, label="log10(Count)")
+    if len(x_plot) > 0:
+        hb = plt.hexbin(
+            x_plot,
+            y_plot,
+            gridsize=30,
+            cmap="inferno",
+            bins="log",
+            xscale="log",
+            yscale="log",
+        )
+        plt.colorbar(hb, label="log10(Count)")
+    else:
+        plt.scatter(x_data, y_data, alpha=0.5)
+
     plt.xlabel("Citation Influence (PageRank)")
     plt.ylabel("Social Brokerage (Betweenness)")
     plt.title(f"Multiplex Correlation (r={corr:.2f})")
@@ -208,3 +265,5 @@ def analyze_multiplex_correlation(G_co: nx.Graph, G_cit: nx.DiGraph, output_dir:
 
     plt.savefig(os.path.join(output_dir, "multiplex_centrality_correlation.png"))
     plt.close()
+
+    return {"correlation": corr, "p_value": p_value}
