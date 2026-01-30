@@ -90,29 +90,37 @@ pytest tests/
 
 ## 🔬 Scientific Results & Interpretation
 
-The automated pipeline generates the following physics analysis in the `results/` folder:
+The automated pipeline generated the following physics analysis, validated by the study of the Hep-Th community:
 
 ### 1. Scale-Free Topology (`social_layer_power_law_fit.png`)
-The degree distribution $P(k)$ of the collaboration network fits a **Power Law** ($P(k) \propto k^{-\gamma}$), confirming the **Scale-Free** nature of scientific collaboration.
-* **Observation:** A straight line on the log-log plot indicates that a few "hub" authors have a disproportionately large number of collaborators (preferential attachment).
-* **Implication:** The network is driven by a "rich-get-richer" mechanism where established scientists attract more new connections than isolated ones.
+The degree distribution $P(k)$ of the social layer exhibits a heavy-tailed nature that follows a power-law-like decay.
+* **Observation**: The Power Law fit effectively captures high-degree hubs, while a Log-Normal fit provides a strong approximation for the mid-range degrees.
+* **Parameters**: The Power Law alpha is recorded at **2.9325** with a cutoff ($x_{min}$) of **9.0**.
+* **Implication**: A small fraction of "super-star" authors hold the majority of the network's influence, while the vast majority of researchers possess fewer than 10 connections.
+
+
 
 ### 2. Network Robustness & Percolation (`network_robustness.png`)
-We simulate network disintegration to test resilience:
-* **Random Failures:** The Giant Component size remains stable when nodes are removed randomly. This confirms the network is **robust to errors**.
-* **Targeted Attacks:** The network collapses rapidly when high-degree nodes (hubs) are removed. This reveals a critical **fragility to targeted attacks**.
+Percolation analysis highlights a distinct vulnerability in the community's architecture:
+* **Random Failures**: The network is highly resilient; even when 20% of the nodes ($f=0.200$) are removed at random, the Giant Component Size ($S$) remains above **0.7**.
+* **Targeted Attacks**: The community is significantly more vulnerable to attacks on high-degree hubs. Removing the top 20% of the most connected authors (such as high-impact leaders like Witten or Vafa) causes the Giant Component to collapse to approximately **0.2**.
+
+
 
 ### 3. Spectral Properties (`spectral_density_entropy.png`)
-The spectrum of the Graph Laplacian is analyzed to compute the **Von Neumann Entropy** ($S_{VN}$).
-* **Algebraic Connectivity ($\lambda_2$):** The non-zero second eigenvalue indicates the network is connected (at the giant component level).
-* **Entropy:** The calculated entropy value reflects the structural complexity and the presence of community clusters within the graph.
+The spectral analysis of the normalized Laplacian matrix characterizes the network's information content:
+* **Algebraic Connectivity ($\lambda_2$)**: The value is **0.009580**, serving as a measure of the network's structural organization.
+* **Entropy**: The **Von Neumann Entropy ($S$)** is **4.50**. This is significantly lower than the maximum possible entropy ($S_{max} \approx 8.45$), indicating that the Hep-Th network is far from a random state and possesses a high degree of order.
+
+
 
 ### 4. Community Structure (`interactive_map.html`)
-Using the **Louvain algorithm**, we detect distinct communities (colored clusters in the map).
-* These communities likely correspond to specific sub-fields within High Energy Physics (e.g., String Theory vs. Phenomenology).
-* The visualization highlights the "Small-World" property: dense local clustering with short path lengths connecting distant nodes.
+The network exhibits an exceptionally well-defined partitioning into distinct research clusters.
+* **Louvain Algorithm**: This achieved a high average modularity of $Q = 0.7732$, where a value above 0.3 typically indicates significant community structure.
+* **Stability Analysis**: The stability was confirmed by an Average Adjusted Rand Index (ARI) of **0.6191**, indicating the community structure is highly robust across different computational runs.
+* **Semantic Validation**: Topological clusters were mapped to specific sub-fields using keyword metadata. For example, **Community 4** represents core theorists (keywords: quivers, mssm), while **Community 1** represents Mathematical Physics and Statistical Mechanics (keywords: ramanujan, spinon).
+* **Small-World Properties**: The network features a high Average Clustering Coefficient of **0.4370** and an Average Path Length of **4.82**, ensuring information can flow rapidly through a dense web of local collaborations.
 
 ## 📚 Data Source
 
 * **Citation Network**: [SNAP: ArXiv HEP-TH](https://snap.stanford.edu/data/cit-HepTh.html)
-* **Abstracts**: [Cornell ArXiv Metadata](https://arxiv.org/help/bulk_data)

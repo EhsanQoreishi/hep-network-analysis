@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 CLEAN_LATEX_PATTERN: Pattern = re.compile(r"\\[a-zA-Z]+")
 CLEAN_VARS_PATTERN: Pattern = re.compile(r"\b[a-zA-Z]+[_\d][a-zA-Z\d]*\b")
 CLEAN_SINGLE_CHAR_PATTERN: Pattern = re.compile(r"\b[a-zA-Z]\b")
-CLEAN_NON_ALPHA_PATTERN: Pattern = re.compile(r"[^a-zA-Z\s]")
+CLEAN_NON_ALPHA_PATTERN: Pattern = re.compile(r"[^a-zA-Z\s\-]")
 CLEAN_WHITESPACE_PATTERN: Pattern = re.compile(r"\s+")
 
 AUTH_CAPTURE_PATTERN: Pattern = re.compile(
@@ -25,29 +25,25 @@ NAME_TOKEN_SPLIT_PATTERN: Pattern = re.compile(r"\W+")
 
 def normalize_name(name: str) -> Optional[str]:
     """
-    Standardizes author names into 'F. Lastname' format.
-
-    Handles compound last names (e.g., 'van der Waals') by including
-    all lowercase prefixes preceding the last name.
-
-    Args:
-        name (str): Raw author name string.
-
-    Returns:
-        Optional[str]: Normalized name or None if invalid.
+    Standardizes author names into 'F. Lastname' format with safety guards.
     """
     name = name.replace(".", "").strip()
+    if not name:
+        return None
+        
     parts = name.split()
     if len(parts) < 2:
         return None
 
-    # logic to handle 'van der Waals'
     surname_start_index = len(parts) - 1
     while surname_start_index > 1 and parts[surname_start_index - 1].islower():
         surname_start_index -= 1
 
     last_name = " ".join(parts[surname_start_index:])
-    first_initial = parts[0][0].upper()
+    
+    first_initial = parts[0][0].upper() if parts[0] else ""
+    if not first_initial:
+        return None
 
     return f"{first_initial}. {last_name}"
 
@@ -55,7 +51,6 @@ def normalize_name(name: str) -> Optional[str]:
 def clean_text(text: str) -> str:
     """
     Preprocesses abstract text: removes LaTeX, math vars, and symbols.
-    Uses pre-compiled regex patterns for speed.
     """
     text = CLEAN_LATEX_PATTERN.sub(" ", text)
     text = CLEAN_VARS_PATTERN.sub(" ", text)
@@ -128,14 +123,14 @@ def parse_abstracts(
                         for auth in cleaned_authors:
                             author_to_papers[auth].append(paper_id)
 
-                # Extract Abstract Text
-                # ArXiv files usually separate metadata and abstract with \\
-                parts = content.split("\\\\")
-                abstract_candidate = parts[2] if len(parts) >= 3 else parts[-1]
+                parts = [p.strip() for p in content.split("\\\\") if p.strip()]
 
-                cleaned = clean_text(abstract_candidate)
-                if len(cleaned) > 50:
-                    paper_to_text[paper_id] = cleaned
+                if len(parts) >= 2:
+                    abstract_candidate = parts[-1]
+                    cleaned = clean_text(abstract_candidate)
+
+                    if len(cleaned) > 5:
+                        paper_to_text[paper_id] = cleaned
 
                 count += 1
 
