@@ -4,6 +4,7 @@ import re
 from collections import defaultdict
 from typing import Dict, List, Optional, Pattern, Tuple
 
+from joblib import Parallel, delayed
 from src.constants import NON_AUTHOR_TERMS
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ def normalize_name(name: str) -> Optional[str]:
     name = name.replace(".", "").strip()
     if not name:
         return None
-        
+
     parts = name.split()
     if len(parts) < 2:
         return None
@@ -40,7 +41,7 @@ def normalize_name(name: str) -> Optional[str]:
         surname_start_index -= 1
 
     last_name = " ".join(parts[surname_start_index:])
-    
+
     first_initial = parts[0][0].upper() if parts[0] else ""
     if not first_initial:
         return None
@@ -60,14 +61,71 @@ def clean_text(text: str) -> str:
     return text.lower()
 
 
+def _process_single_abstract(
+    path: str, filename: str
+) -> Optional[Tuple[str, List[str], str]]:
+    """
+    Helper function to process a single abstract file.
+    Designed for parallel execution.
+    """
+    paper_id = filename.replace(".abs", "")
+
+    try:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            with open(path, "r", encoding="latin-1", errors="replace") as f:
+                content = f.read()
+
+        authors_list = []
+        auth_match = AUTH_CAPTURE_PATTERN.search(content)
+        if auth_match:
+            raw_authors = auth_match.group(1).replace("\n", " ")
+            raw_authors = AUTH_PAREN_PATTERN.sub("", raw_authors)
+            authors_split = AUTH_SPLIT_PATTERN.split(raw_authors)
+
+            for a in authors_split:
+                name = a.strip()
+                if len(name) <= 2:
+                    continue
+
+                name_tokens = set(NAME_TOKEN_SPLIT_PATTERN.split(name.lower()))
+                if not name_tokens.isdisjoint(NON_AUTHOR_TERMS):
+                    continue
+
+                norm = normalize_name(name)
+                if norm:
+                    authors_list.append(norm)
+
+        cleaned_text = ""
+        parts = [p.strip() for p in content.split("\\\\") if p.strip()]
+        if len(parts) >= 2:
+            abstract_candidate = parts[-1]
+            cleaned = clean_text(abstract_candidate)
+            if len(cleaned) > 5:
+                cleaned_text = cleaned
+
+        if not authors_list and not cleaned_text:
+            return None
+
+        return (paper_id, authors_list, cleaned_text)
+
+    except Exception as e:
+        return None
+
+
 def parse_abstracts(
-    root_dir: str,
+    root_dir: str, n_jobs: int = -1
 ) -> Tuple[Dict[str, List[str]], Dict[str, str], Dict[str, List[str]]]:
     """
     Scans a directory for .abs files to extract metadata and abstract text.
 
+    Optimized: Uses parallel processing (joblib) to parse files concurrently.
+
     Args:
         root_dir (str): Directory containing .abs files.
+        n_jobs (int): Number of parallel jobs (-1 for all cores).
 
     Returns:
         Tuple containing:
@@ -77,69 +135,38 @@ def parse_abstracts(
     """
     logger.info(f"Scanning abstracts in {root_dir}...")
 
+    all_files = []
+    for root, _, files in os.walk(root_dir):
+        for file in files:
+            if file.endswith(".abs"):
+                all_files.append((os.path.join(root, file), file))
+
+    logger.info(f"Found {len(all_files)} abstract files. Parsing in parallel...")
+
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(_process_single_abstract)(path, fname) for path, fname in all_files
+    )
+
     paper_to_authors = defaultdict(list)
     paper_to_text = {}
     author_to_papers = defaultdict(list)
 
     count = 0
+    for res in results:
+        if res is None:
+            continue
 
-    for root, _, files in os.walk(root_dir):
-        for file in files:
-            if not file.endswith(".abs"):
-                continue
+        pid, authors, text = res
 
-            paper_id = file.replace(".abs", "")
-            path = os.path.join(root, file)
+        if authors:
+            paper_to_authors[pid] = authors
+            for auth in authors:
+                author_to_papers[auth].append(pid)
 
-            try:
-                # 'latin-1' is common for older ArXiv datasets, but errors can happen
-                with open(path, "r", encoding="latin-1") as f:
-                    content = f.read()
+        if text:
+            paper_to_text[pid] = text
 
-                # Extract Authors
-                auth_match = AUTH_CAPTURE_PATTERN.search(content)
-                if auth_match:
-                    raw_authors = auth_match.group(1).replace("\n", " ")
-                    raw_authors = AUTH_PAREN_PATTERN.sub("", raw_authors)
-                    authors = AUTH_SPLIT_PATTERN.split(raw_authors)
-
-                    cleaned_authors = []
-                    for a in authors:
-                        name = a.strip()
-                        if len(name) <= 2:
-                            continue
-
-                        # Check for non-author terms (affiliations, etc.)
-                        name_tokens = set(NAME_TOKEN_SPLIT_PATTERN.split(name.lower()))
-                        if not name_tokens.isdisjoint(NON_AUTHOR_TERMS):
-                            continue
-
-                        norm = normalize_name(name)
-                        if norm:
-                            cleaned_authors.append(norm)
-
-                    if cleaned_authors:
-                        paper_to_authors[paper_id] = cleaned_authors
-                        for auth in cleaned_authors:
-                            author_to_papers[auth].append(paper_id)
-
-                parts = [p.strip() for p in content.split("\\\\") if p.strip()]
-
-                if len(parts) >= 2:
-                    abstract_candidate = parts[-1]
-                    cleaned = clean_text(abstract_candidate)
-
-                    if len(cleaned) > 5:
-                        paper_to_text[paper_id] = cleaned
-
-                count += 1
-
-            except (IOError, UnicodeDecodeError) as e:
-                logger.warning(f"Failed to read {path}: {e}")
-                continue
-            except Exception as e:
-                logger.debug(f"Unexpected error parsing {paper_id}: {e}")
-                continue
+        count += 1
 
     logger.info(f"Parsed {count} papers successfully.")
     return paper_to_authors, paper_to_text, author_to_papers

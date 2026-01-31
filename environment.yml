@@ -9,7 +9,9 @@ dependencies:
   - networkx>=3.0
   - matplotlib>=3.5.0
   - scikit-learn>=1.0.0
-  - pandas
+  - pandas>=1.4.0
+  - numba>=0.56.0
+  - joblib>=1.2.0
   - jupyterlab
   - pytest
   - pip

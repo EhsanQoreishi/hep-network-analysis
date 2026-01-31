@@ -7,12 +7,21 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from community import community_louvain
+from joblib import Parallel, delayed
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
 from sklearn.metrics import adjusted_rand_score
 
 from src.constants import CUSTOM_STOP_WORDS
 
 logger = logging.getLogger(__name__)
+
+
+def _run_louvain(G: nx.Graph, seed: int) -> Dict[str, int]:
+    """
+    Helper function to run a single instance of Louvain detection.
+    Defined at module level to ensure picklability for parallel execution.
+    """
+    return community_louvain.best_partition(G, random_state=seed)
 
 
 def check_community_distribution(G: nx.Graph, output_dir: str = "results") -> None:
@@ -35,7 +44,6 @@ def check_community_distribution(G: nx.Graph, output_dir: str = "results") -> No
     tiny_communities = sum(1 for s in sizes if s < 5)
     logger.info(f"Number of 'Tiny' Communities (Size < 5): {tiny_communities}")
 
-    # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
     plt.figure(figsize=(8, 5))
@@ -57,15 +65,18 @@ def analyze_communities_robust(
     author_to_papers: Dict[str, List[str]],
     paper_to_text: Dict[str, str],
     n_iterations: int = 10,
+    n_jobs: int = -1,
 ) -> Dict[str, int]:
     """
     Performs robust community detection (Louvain) with stability testing and Topic Modeling.
+    Uses parallel computing to speed up stability iterations.
 
     Args:
         G (nx.Graph): The network graph.
         author_to_papers (Dict): Mapping of author names to paper IDs.
         paper_to_text (Dict): Mapping of paper IDs to abstract text.
         n_iterations (int): Number of runs to test Louvain stability.
+        n_jobs (int): Number of CPU cores to use (-1 for all available).
 
     Returns:
         Dict[str, int]: The best partition map (node -> community ID).
@@ -73,20 +84,16 @@ def analyze_communities_robust(
     logger.info("Starting Robust Community Detection & Stability Analysis...")
 
     G_undir = G.to_undirected()
-    logger.info(f"Running Louvain {n_iterations} times to test stability...")
+    logger.info(f"Running Louvain {n_iterations} times (Parallel n_jobs={n_jobs})...")
 
-    # Run partitions and store modularities
-    partitions_list = []
-    modularities = []
+    partitions_list = Parallel(n_jobs=n_jobs)(
+        delayed(_run_louvain)(G_undir, i) for i in range(n_iterations)
+    )
 
-    for i in range(n_iterations):
-        # random_state ensures reproducibility for specific runs if needed
-        part = community_louvain.best_partition(G_undir, random_state=i)
-        partitions_list.append(part)
-        q = community_louvain.modularity(part, G_undir)
-        modularities.append(q)
+    modularities = [
+        community_louvain.modularity(part, G_undir) for part in partitions_list
+    ]
 
-    # Stability Check (ARI Score)
     nodes = list(G_undir.nodes())
     first_run_labels = [partitions_list[0][n] for n in nodes]
 
@@ -109,16 +116,13 @@ def analyze_communities_robust(
             "  -> Weak community structure (Q < 0.4). Network may be well-mixed."
         )
 
-    # Select best partition
     best_idx = np.argmax(modularities)
     best_partition = partitions_list[best_idx]
 
-    # Invert partition for topic modeling: CommID -> [Authors]
     communities = defaultdict(list)
     for node, comm_id in best_partition.items():
         communities[comm_id].append(node)
 
-    # Filter for significant communities (>= 5 members)
     significant_comms = {
         cid: auths for cid, auths in communities.items() if len(auths) >= 5
     }
@@ -127,12 +131,10 @@ def analyze_communities_robust(
         significant_comms.keys(), key=lambda k: len(significant_comms[k]), reverse=True
     )
 
-    # Aggregate text per community
     community_documents = []
     map_index_to_comm_id = []
 
     for comm_id in sorted_comm_ids:
-        # Optimized list comprehension for text aggregation
         comm_text_list = [
             paper_to_text[pid]
             for author in significant_comms[comm_id]
@@ -151,7 +153,6 @@ def analyze_communities_robust(
         )
         return best_partition
 
-    # TF-IDF Topic Modeling
     stop_words = list(ENGLISH_STOP_WORDS.union(CUSTOM_STOP_WORDS))
     tfidf = TfidfVectorizer(
         stop_words=stop_words, max_features=1000, max_df=0.25, sublinear_tf=True
@@ -167,7 +168,6 @@ def analyze_communities_robust(
             row = tfidf_matrix[i]
             scores = row.toarray().flatten()
 
-            # Vectorized sort to find top keywords
             top_indices = scores.argsort()[::-1][:8]
             top_keywords = feature_names[top_indices]
 
