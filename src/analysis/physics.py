@@ -34,17 +34,14 @@ def analyze_power_law(
     """
     logger.info(f"--- Heavy-Tail Distribution Analysis ({name}) ---")
 
-    # Vectorized degree extraction
     degrees = np.array([d for _, d in G.degree()])
-    degrees = degrees[degrees > 0]  # Filter zeros
+    degrees = degrees[degrees > 0]
 
-    # Fit the distribution
     fit = powerlaw.Fit(degrees, discrete=True, verbose=False)
 
     logger.info(f"  Power Law Alpha: {fit.power_law.alpha:.4f}")
     logger.info(f"  Xmin (Cutoff):   {fit.power_law.xmin}")
 
-    # Compare distributions
     R, p = fit.distribution_compare("power_law", "lognormal")
 
     logger.info("[Physics Interpretation]")
@@ -56,7 +53,6 @@ def analyze_power_law(
     else:
         logger.info("  -> Verdict: The distribution decays quickly.")
 
-    # Plot
     os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=(8, 6))
     fit.plot_pdf(color="b", linear_bins=True, label="Empirical Data")
@@ -98,7 +94,6 @@ def analyze_spectral_properties(
     """
     logger.info("--- Spectral Analysis (Laplacian & Entropy) ---")
 
-    # Spectral analysis requires a connected component
     if not nx.is_connected(G):
         logger.warning(
             "Graph disconnected. Using Giant Connected Component for spectral metrics."
@@ -109,24 +104,20 @@ def analyze_spectral_properties(
 
     n = G_cc.number_of_nodes()
 
-    # 1. Diffusion Time (approx) via Path Length
     try:
         avg_path_len = nx.average_shortest_path_length(G_cc, weight="distance")
     except nx.NetworkXError:
         avg_path_len = np.log(n)
     logger.info(f"  Average Path Length (L): {avg_path_len:.2f}")
 
-    # 2. Diagonalization
     logger.info("  Computing Normalized Laplacian Matrix...")
     L = nx.normalized_laplacian_matrix(G_cc)
 
     logger.info("  Calculating Eigenvalues...")
     try:
         if n < 2000:
-            # Dense solver for small N (exact entropy)
             eigenvalues = scipy.linalg.eigh(L.todense(), eigvals_only=True)
         else:
-            # Sparse solver for large N (approximate spectrum)
             logger.info("  (Graph large: approximating spectral density with k=100)")
             eigenvalues = scipy.sparse.linalg.eigsh(
                 L, k=min(n - 1, 100), which="SM", return_eigenvectors=False
@@ -137,14 +128,10 @@ def analyze_spectral_properties(
 
     eigenvalues.sort()
 
-    # Algebraic Connectivity
     lambda_2 = eigenvalues[1] if len(eigenvalues) > 1 else 0.0
     diffusion_time = 1.0 / lambda_2 if lambda_2 > 1e-9 else float("inf")
 
-    # Von Neumann Entropy: S = -sum(rho * ln(rho))
-    # Normalize eigenvalues to sum to 1
     rho = eigenvalues / np.sum(eigenvalues)
-    # Add epsilon to avoid log(0)
     vn_entropy = -np.sum(rho * np.log(rho + 1e-12))
     max_entropy = np.log(n)
 
@@ -153,7 +140,6 @@ def analyze_spectral_properties(
     logger.info(f"  Diffusion Time (tau): approx {diffusion_time:.2f} steps")
     logger.info(f"  Von Neumann Entropy (S): {vn_entropy:.4f} (Max: {max_entropy:.4f})")
 
-    # Plot Spectral Density
     os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=(10, 6))
     try:
@@ -186,35 +172,34 @@ def analyze_robustness(
     Percolation Analysis: Simulates node removal to test network fragility.
     Compares Random Failure vs Targeted Attack (removing hubs).
 
+    Optimized: Uses adaptive step sizes to avoid O(N^2) complexity on large graphs.
+
     Returns:
         Dict: Lists of GCC sizes for 'random' and 'attack' scenarios.
     """
     logger.info("--- Robustness & Perturbation Analysis ---")
 
     fraction_to_remove = 0.2
-    steps = 20
     n_total = G.number_of_nodes()
     n_remove = int(n_total * fraction_to_remove)
-    step_size = max(1, n_remove // steps)
+
+    steps_to_simulate = 50
+    step_size = max(1, n_remove // steps_to_simulate)
 
     logger.info(f"  Simulating removal of {int(fraction_to_remove * 100)}% nodes...")
+    logger.info(f"  Optimization: Computing GCC every {step_size} removals.")
 
-    # Strategy 1: Targeted Attack (Hubs first)
     G_attack = G.copy()
     targets = sorted(G.degree, key=lambda x: x[1], reverse=True)
     target_nodes = [n for n, _ in targets]
     attack_sizes = [1.0]
 
-    # Strategy 2: Random Failure
     G_random = G.copy()
     random_targets = list(G.nodes())
     random.shuffle(random_targets)
     random_sizes = [1.0]
 
-    # Simulation Loop
-    # Note: range arguments must be int
     for i in range(0, n_remove, step_size):
-        # Attack
         batch_attack = target_nodes[i : i + step_size]
         G_attack.remove_nodes_from(batch_attack)
 
@@ -224,7 +209,6 @@ def analyze_robustness(
         else:
             attack_sizes.append(0.0)
 
-        # Random
         batch_random = random_targets[i : i + step_size]
         G_random.remove_nodes_from(batch_random)
 
@@ -234,7 +218,6 @@ def analyze_robustness(
         else:
             random_sizes.append(0.0)
 
-    # Plot
     x_axis = np.linspace(0, fraction_to_remove, len(attack_sizes))
 
     os.makedirs(output_dir, exist_ok=True)
@@ -273,10 +256,8 @@ def analyze_configuration_model(
     C_real = nx.average_clustering(G_cc)
 
     null_clustering_values = []
-    # Heuristic for sufficient mixing
     n_swaps = 5 * G_cc.number_of_edges()
 
-    # Generate Null Models via Edge Swapping
     for _ in range(n_randomizations):
         G_null = G_cc.copy()
         try:
@@ -297,7 +278,6 @@ def analyze_configuration_model(
     logger.info(f"  Null Model <C>:  {avg_null_C:.4f}")
     logger.info(f"  Z-Score:         {z_score:.2f}")
 
-    # Plot
     os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=(8, 5))
     plt.hist(null_clustering_values, color="gray", alpha=0.7, label="Null Model")

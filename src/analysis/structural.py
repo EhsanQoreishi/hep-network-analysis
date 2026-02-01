@@ -5,9 +5,38 @@ from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from numba import jit
 from scipy.stats import spearmanr
 
 logger = logging.getLogger(__name__)
+
+
+@jit(nopython=True)
+def _fast_avg_strength(
+    k_values: np.ndarray, s_values: np.ndarray, unique_k: np.ndarray
+) -> np.ndarray:
+    """
+    Optimized helper function to calculate average strength per degree class.
+    Uses Numba JIT compilation to bypass the Python interpreter overhead for the loop.
+
+    Args:
+        k_values: Array of node degrees.
+        s_values: Array of node strengths.
+        unique_k: Array of unique degree values found in the network.
+
+    Returns:
+        np.ndarray: Average strength for each unique degree.
+    """
+    n_unique = len(unique_k)
+    avg_s = np.zeros(n_unique, dtype=np.float64)
+
+    for i in range(n_unique):
+        k = unique_k[i]
+        mask = k_values == k
+        subset = s_values[mask]
+        avg_s[i] = np.mean(subset)
+
+    return avg_s
 
 
 def get_global_metrics(G: nx.Graph) -> Dict[str, float]:
@@ -54,15 +83,12 @@ def get_top_authors(
     """
     logger.info("--- Centrality Analysis ---")
 
-    # 1. Degree Centrality (Hubs)
-    # Note: Sorting dict items is efficient enough here; no complex vectorization needed for top-k
     top_connected = sorted(G_co.degree(), key=lambda x: x[1], reverse=True)[:5]
 
     logger.info("Most Collaborative (High Degree):")
     for author, degree in top_connected:
         logger.info(f"  - {author}: {degree} co-authors")
 
-    # 2. Citation Influence (Authorities)
     top_cited = sorted(
         G_cit.in_degree(weight="weight"), key=lambda x: x[1], reverse=True
     )[:5]
@@ -71,12 +97,10 @@ def get_top_authors(
     for author, count in top_cited:
         logger.info(f"  - {author}: {count:.1f} citations")
 
-    # 3. Betweenness Centrality (Bridges)
     logger.info("Calculating Betweenness Centrality (this may take a moment)...")
     top_bridges = []
 
     try:
-        # k=500 approximation for speed on large graphs
         betweenness = nx.betweenness_centrality(G_co, weight="distance", k=500)
         top_bridges = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:5]
 
@@ -103,12 +127,8 @@ def analyze_layer_shortest_paths(
     """
     logger.info("--- Cross-Layer Path Analysis ---")
 
-    # Pre-filter nodes to avoid repeated dictionary lookups in the loop
     social_nodes = set(G_co.nodes())
 
-    # Identify valid citation edges where both nodes exist in social layer
-    # Vectorization note: Shortest path is inherently sequential per pair,
-    # but we filter the edge list first.
     valid_edges = [
         (u, v) for u, v in G_cit.edges() if u in social_nodes and v in social_nodes
     ]
@@ -126,7 +146,6 @@ def analyze_layer_shortest_paths(
     logger.info(f"Analyzed {len(distances)} valid pairs connected in Citation layer.")
     logger.info(f"Average Co-authorship distance for these pairs: {avg_dist:.2f}")
 
-    # Plot
     os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=(8, 5))
     plt.hist(
@@ -155,39 +174,37 @@ def analyze_strength_distribution(
     """
     Analyzes the correlation between Node Strength (s) and Degree (k).
     s ~ k^beta.
+    Uses Numba JIT compilation for performance.
     """
     logger.info(f"--- Weighted Strength Analysis ({name}) ---")
 
-    # Extract metrics using list comprehensions (faster than dict iteration)
     degrees = dict(G.degree())
     strengths = dict(G.degree(weight="weight"))
 
-    # Vectorize inputs
     nodes = list(G.nodes())
-    k_values = np.array([degrees[n] for n in nodes])
-    s_values = np.array([strengths[n] for n in nodes])
+    k_values = np.array([degrees[n] for n in nodes], dtype=np.float64)
+    s_values = np.array([strengths[n] for n in nodes], dtype=np.float64)
 
-    # Boolean masking to filter zeros
     mask = (k_values > 0) & (s_values > 0)
     k_values = k_values[mask]
     s_values = s_values[mask]
 
-    # Calculate average strength per degree class
     k_unique = np.unique(k_values)
-    # Vectorized calculation of means per group is complex without pandas,
-    # keeping the explicit loop over unique k is cleaner for pure numpy here.
-    s_avg_k = np.array([np.mean(s_values[k_values == k]) for k in k_unique])
 
-    # Fit Power Law: log(s) ~ beta * log(k) + intercept
+    s_avg_k = _fast_avg_strength(k_values, s_values, k_unique)
+
     log_k = np.log10(k_unique)
     log_s = np.log10(s_avg_k)
-    beta, intercept = np.polyfit(log_k, log_s, 1)
+
+    if len(log_k) > 1:
+        beta, intercept = np.polyfit(log_k, log_s, 1)
+    else:
+        beta, intercept = 0.0, 0.0
 
     logger.info(f"  Fit exponent (beta): {beta:.4f}")
     if beta > 1.1:
         logger.info("  -> Super-linear (beta > 1): Hubs work harder/more intensely.")
 
-    # Plot
     os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=(8, 6))
     plt.scatter(k_values, s_values, alpha=0.1, color="gray", s=10, label="Nodes")
@@ -225,11 +242,9 @@ def analyze_multiplex_correlation(
         return {"correlation": 0.0, "p_value": 1.0}
 
     pagerank = nx.pagerank(G_cit, weight="weight")
-    # k=min(...) ensures we don't over-sample small graphs
     k_sample = min(len(common_authors), 500)
     betweenness = nx.betweenness_centrality(G_co, weight="distance", k=k_sample)
 
-    # Convert to arrays for vectorized filtering
     x_data = np.array([pagerank.get(a, 0) for a in common_authors])
     y_data = np.array([betweenness.get(a, 0) for a in common_authors])
 
@@ -237,7 +252,6 @@ def analyze_multiplex_correlation(
 
     logger.info(f"  Spearman Correlation: {corr:.4f} (p={p_value:.4e})")
 
-    # Filter for plotting (log scale hates zeros)
     mask = (x_data > 0) & (y_data > 0)
     x_plot = x_data[mask]
     y_plot = y_data[mask]

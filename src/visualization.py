@@ -1,3 +1,4 @@
+import heapq
 import logging
 import os
 
@@ -14,10 +15,9 @@ def visualize_network(
     """
     Generates a high-fidelity interactive HTML visualization of the network topology.
 
-    To ensure visual interpretability and performance, the function extracts the
-    top 500 nodes by degree (hubs) and projects their connectivity. Nodes are
-    scaled by their degree centrality and color-coded based on their detected
-    Louvain community membership (recalculated for the subgraph).
+    Optimizations:
+    - Uses Heap Queue (heapq) for O(N log K) top-node extraction instead of O(N log N) sorting.
+    - Uses batch attribute assignment and `from_nx` to minimize Python loop overhead.
 
     Args:
         G (nx.Graph): The social network graph.
@@ -25,42 +25,50 @@ def visualize_network(
     """
     logger.info("--- Projecting Interactive Topological Map ---")
 
-    # Ensure output directory exists
     output_dir = os.path.dirname(title)
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
-    # Filter for Top Hubs (Top 500 by Degree)
     degrees = dict(G.degree())
-    top_nodes = sorted(degrees, key=degrees.get, reverse=True)[:500]
-    G_sub = G.subgraph(top_nodes)
+    k_hubs = 500
+
+    if len(degrees) > k_hubs:
+        top_nodes = heapq.nlargest(k_hubs, degrees, key=degrees.get)
+    else:
+        top_nodes = list(degrees.keys())
+
+    G_sub = G.subgraph(top_nodes).copy()
 
     logger.info(f"  Rendering subgraph with {len(top_nodes)} nodes (Top Hubs)...")
 
-    # Initialize PyVis Network
-    net = Network(height="100vh", width="100%", bgcolor="#222222", font_color="white")
-
-    # Detect communities within this subgraph for coloring
     partition = community_louvain.best_partition(G_sub)
 
-    # Add nodes with visual attributes
+    titles = {}
+    groups = {}
+    values = {}
+
     for node in G_sub.nodes():
         comm_id = partition.get(node, 0)
-        degree = degrees[node]
-        net.add_node(
-            node,
-            label=node,
-            title=f"Author: {node}\nDegree: {degree}\nCommunity: {comm_id}",
-            value=degree,
-            group=comm_id,
-        )
+        deg = degrees[node]
 
-    # Add edges
-    for u, v in G_sub.edges():
-        net.add_edge(u, v, color="#555555", alpha=0.3)
+        titles[node] = f"Author: {node}\nDegree: {deg}\nCommunity: {comm_id}"
+        groups[node] = comm_id
+        values[node] = deg
 
-    # Physics Layout
+    nx.set_node_attributes(G_sub, titles, "title")
+    nx.set_node_attributes(G_sub, groups, "group")
+    nx.set_node_attributes(G_sub, values, "value")
+    nx.set_node_attributes(G_sub, {n: n for n in G_sub.nodes()}, "label")
+
+    net = Network(height="100vh", width="100%", bgcolor="#222222", font_color="white")
+
+    net.from_nx(G_sub)
+
     net.force_atlas_2based()
+
+    for edge in net.edges:
+        edge["color"] = "#555555"
+        edge["alpha"] = 0.3
 
     try:
         net.save_graph(title)

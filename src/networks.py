@@ -14,6 +14,9 @@ def build_networks(
     """
     Constructs Co-authorship (Layer 1) and Citation (Layer 2) networks.
 
+    Optimized: Uses Pandas relational merges for vector-speed citation graph construction,
+    replacing slow iterative loops.
+
     Args:
         edges_file (str): Path to the citation edges file.
         paper_to_authors (Dict): Mapping of paper ID to list of author names.
@@ -23,8 +26,6 @@ def build_networks(
     """
     logger.info("Building Author Networks...")
 
-    # --- Layer 1: Co-authorship ---
-    # Optimized: Flatten the author lists once to build the sparse matrix
     all_authors = sorted(
         list({a for auths in paper_to_authors.values() for a in auths})
     )
@@ -37,7 +38,6 @@ def build_networks(
     cols = []
     data = []
 
-    # Flatten the (paper -> authors) structure into coordinate lists
     for pid, authors in paper_to_authors.items():
         if len(authors) < 2:
             continue
@@ -48,11 +48,8 @@ def build_networks(
                 cols.append(p_idx)
                 data.append(1)
 
-    # Create Biadjacency Matrix B (Authors x Papers)
     B = csr_matrix((data, (rows, cols)), shape=(len(all_authors), len(paper_ids)))
 
-    # Project to Author-Author network: C = B * B.T
-    # This creates a clique for every paper
     C = B.dot(B.T)
     C.setdiag(0)
     C.eliminate_zeros()
@@ -62,54 +59,58 @@ def build_networks(
     G_co = nx.from_scipy_sparse_array(C)
     nx.relabel_nodes(G_co, {i: name for i, name in enumerate(all_authors)}, copy=False)
 
-    # Vectorized attribute setting isn't directly supported by nx,
-    # but we can do it efficiently
     for u, v, d in G_co.edges(data=True):
         w = d.get("weight", 1)
         d["distance"] = 1.0 / w if w > 0 else 1.0
 
-    # --- Layer 2: Citation ---
-    logger.info("Processing citation edges...")
-    G_cit = nx.DiGraph()
+    logger.info("Processing citation edges (Vectorized)...")
 
     try:
-        # Vectorized Read: Use pandas to read the edge list (much faster than loop)
-        # Assuming space-separated or tab-separated file with no header
-        # Skipping lines starting with '#'
         df_edges = pd.read_csv(
             edges_file, sep=r"\s+", comment="#", names=["source", "target"], dtype=str
         )
 
-        # Filter edges where both papers exist in our abstract dataset
-        # (This avoids key errors later)
         valid_papers = set(paper_to_authors.keys())
         df_edges = df_edges[
             df_edges["source"].isin(valid_papers)
             & df_edges["target"].isin(valid_papers)
         ]
 
-        logger.info(f"Found {len(df_edges)} valid citation links between papers.")
+        flat_paper_authors = [
+            (pid, auth) for pid, authors in paper_to_authors.items() for auth in authors
+        ]
 
-        # Build Author-Citation edges
-        # We iterate over the valid paper-paper links
-        for _, row in df_edges.iterrows():
-            source_pid = row["source"]
-            target_pid = row["target"]
+        df_authors = pd.DataFrame(flat_paper_authors, columns=["paper_id", "author"])
 
-            s_auths = paper_to_authors[source_pid]
-            t_auths = paper_to_authors[target_pid]
+        merged_source = df_edges.merge(
+            df_authors, left_on="source", right_on="paper_id"
+        ).rename(columns={"author": "source_author"})
 
-            # Add edges for all author pairs (s -> t)
-            # This logic assumes if Paper A cites Paper B, ALL authors of A cite ALL authors of B
-            for sa in s_auths:
-                for ta in t_auths:
-                    if sa == ta:
-                        continue
+        merged_full = merged_source.merge(
+            df_authors, left_on="target", right_on="paper_id"
+        ).rename(columns={"author": "target_author"})
 
-                    if G_cit.has_edge(sa, ta):
-                        G_cit[sa][ta]["weight"] += 1.0
-                    else:
-                        G_cit.add_edge(sa, ta, weight=1.0)
+        merged_full = merged_full[
+            merged_full["source_author"] != merged_full["target_author"]
+        ]
+
+        citation_weights = (
+            merged_full.groupby(["source_author", "target_author"])
+            .size()
+            .reset_index(name="weight")
+        )
+
+        logger.info(
+            f"Constructing Citation Graph from {len(citation_weights)} unique weighted edges..."
+        )
+
+        G_cit = nx.from_pandas_edgelist(
+            citation_weights,
+            source="source_author",
+            target="target_author",
+            edge_attr="weight",
+            create_using=nx.DiGraph,
+        )
 
     except FileNotFoundError:
         logger.error(f"Could not find {edges_file}. Returning empty citation graph.")
