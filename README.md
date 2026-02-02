@@ -9,7 +9,8 @@ This project implements a reproducible pipeline to Extract, Transform, and Load 
 Below is a preview of the **Giant Component** of the co-authorship network.
 *(Click the image to open the full interactive visualization)*
 
-[![Interactive Graph Preview](results/map_preview.png)](results/interactive_map.html)
+[![Interactive Graph Preview](results/map_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/results/interactive_map.html)
+
 
 The network exhibits an exceptionally well-defined partitioning into distinct research clusters.
 * **Louvain Algorithm**: This achieved a high average modularity of $Q = 0.7732$, where a value above 0.3 typically indicates significant community structure.
