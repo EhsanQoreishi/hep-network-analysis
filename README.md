@@ -7,9 +7,15 @@ This project implements a reproducible pipeline to Extract, Transform, and Load 
 ## Network Visualization
 
 Below is a preview of the **Giant Component** of the co-authorship network.
-*(Click the image to open the full interactive visualization if hosted)*
+*(Click the image to open the full interactive visualization)*
 
 [![Interactive Graph Preview](results/map_preview.png)](results/interactive_map.html)
+
+The network exhibits an exceptionally well-defined partitioning into distinct research clusters.
+* **Louvain Algorithm**: This achieved a high average modularity of $Q = 0.7732$, where a value above 0.3 typically indicates significant community structure.
+* **Stability Analysis**: The stability was confirmed by an Average Adjusted Rand Index (ARI) of **0.6191**, indicating the community structure is highly robust across different computational runs.
+* **Semantic Validation**: Topological clusters were mapped to specific sub-fields using keyword metadata. 
+* **Small-World Properties**: The network features a high Average Clustering Coefficient of **0.4370** and an Average Path Length of **4.82**, ensuring information can flow rapidly through a dense web of local collaborations.
 
 
 ## Features
@@ -20,11 +26,11 @@ Below is a preview of the **Giant Component** of the co-authorship network.
     * **Scale-Free Dynamics**: Statistical fitting of degree distributions to Power Law ($P(k) \sim k^{-\gamma}$).
     * **Spectral Properties**: Computation of Von Neumann Entropy and Algebraic Connectivity ($\lambda_2$) using the Graph Laplacian.
     * **Robustness**: Simulation of random failures vs. targeted attacks (percolation theory).
-* **Performance Optimization (Module 2)**:
+* **Performance Optimization**:
     * **Parallel Computing**: Uses `joblib` and `Snakemake` threads to parallelize community detection and file parsing.
     * **JIT Compilation**: Integrating `Numba` to accelerate heavy mathematical correlations.
     * **Algorithmic Efficiency**: Optimized graph filtering using `heapq` and vector-based Pandas operations.
-* **Automation (Module 3)**: Full workflow managed by **Snakemake**.
+* **Automation**: Full workflow managed by **Snakemake**.
 
 ## 📂 Project Structure
 
@@ -52,7 +58,7 @@ This project uses **Conda** for environment management.
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/EhsanQoreishi/hep-network-analysis.git](https://github.com/EhsanQoreishi/hep-network-analysis.git)
+    git clone https://github.com/EhsanQoreishi/hep-network-analysis.git
     cd hep-network-analysis
     ```
 
@@ -73,7 +79,7 @@ This project uses **Snakemake** to automate the entire analysis. It checks for f
 
 ```bash
 snakemake -c4
-
+```
 
 ### Manual Execution (CLI)
 You can also run the script manually with custom arguments:
@@ -95,7 +101,8 @@ pytest tests/
 
 The automated pipeline generated the following physics analysis, validated by the study of the Hep-Th community:
 
-### 1. Scale-Free Topology (`social_layer_power_law_fit.png`)
+### 1. Scale-Free Topology:
+![Scale-Free Topology](results/social_layer_power_law_fit.png)
 The degree distribution $P(k)$ of the social layer exhibits a heavy-tailed nature that follows a power-law-like decay.
 * **Observation**: The Power Law fit effectively captures high-degree hubs, while a Log-Normal fit provides a strong approximation for the mid-range degrees.
 * **Parameters**: The Power Law alpha is recorded at **2.9325** with a cutoff ($x_{min}$) of **9.0**.
@@ -103,26 +110,21 @@ The degree distribution $P(k)$ of the social layer exhibits a heavy-tailed natur
 
 
 
-### 2. Network Robustness & Percolation (`network_robustness.png`)
+### 2. Network Robustness & Percolation
+![Network Robustness](results/network_robustness.png)
 Percolation analysis highlights a distinct vulnerability in the community's architecture:
 * **Random Failures**: The network is highly resilient; even when 20% of the nodes ($f=0.200$) are removed at random, the Giant Component Size ($S$) remains above **0.7**.
 * **Targeted Attacks**: The community is significantly more vulnerable to attacks on high-degree hubs. Removing the top 20% of the most connected authors (such as high-impact leaders like Witten or Vafa) causes the Giant Component to collapse to approximately **0.2**.
 
 
 
-### 3. Spectral Properties (`spectral_density_entropy.png`)
+### 3. Spectral Properties
+![Spectral Properties](results/spectral_density_entropy.png)
 The spectral analysis of the normalized Laplacian matrix characterizes the network's information content:
 * **Algebraic Connectivity ($\lambda_2$)**: The value is **0.009580**, serving as a measure of the network's structural organization.
 * **Entropy**: The **Von Neumann Entropy ($S$)** is **4.50**. This is significantly lower than the maximum possible entropy ($S_{max} \approx 8.45$), indicating that the Hep-Th network is far from a random state and possesses a high degree of order.
 
 
-
-### 4. Community Structure (`interactive_map.html`)
-The network exhibits an exceptionally well-defined partitioning into distinct research clusters.
-* **Louvain Algorithm**: This achieved a high average modularity of $Q = 0.7732$, where a value above 0.3 typically indicates significant community structure.
-* **Stability Analysis**: The stability was confirmed by an Average Adjusted Rand Index (ARI) of **0.6191**, indicating the community structure is highly robust across different computational runs.
-* **Semantic Validation**: Topological clusters were mapped to specific sub-fields using keyword metadata. For example, **Community 4** represents core theorists (keywords: quivers, mssm), while **Community 1** represents Mathematical Physics and Statistical Mechanics (keywords: ramanujan, spinon).
-* **Small-World Properties**: The network features a high Average Clustering Coefficient of **0.4370** and an Average Path Length of **4.82**, ensuring information can flow rapidly through a dense web of local collaborations.
 
 ## Data Source
 
