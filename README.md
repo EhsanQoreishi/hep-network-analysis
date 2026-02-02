@@ -4,15 +4,15 @@ A computational physics project analyzing the structure, dynamics, and social pr
 
 This project implements a reproducible pipeline to Extract, Transform, and Load (ETL) raw arXiv data, construct multi-layer networks (citation and co-authorship), and apply statistical mechanics metrics (Power Laws, Spectral Entropy) to understand scientific collaboration.
 
-## 🕸️ Network Visualization
+## Network Visualization
 
 Below is a preview of the **Giant Component** of the co-authorship network.
 *(Click the image to open the full interactive visualization if hosted)*
 
-[![Interactive Graph Preview](results/map_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/results/interactive_map.html)
+[![Interactive Graph Preview](results/map_preview.png)](results/interactive_map.html)
 
 
-## 🚀 Features
+## Features
 
 * **Data Parsing**: Custom ETL pipeline to parse unstructured `.abs` abstract files and edge lists.
 * **Network Construction**: Builds both **Citation** (Directed) and **Co-authorship** (Undirected/Weighted) graphs.
@@ -20,7 +20,11 @@ Below is a preview of the **Giant Component** of the co-authorship network.
     * **Scale-Free Dynamics**: Statistical fitting of degree distributions to Power Law ($P(k) \sim k^{-\gamma}$).
     * **Spectral Properties**: Computation of Von Neumann Entropy and Algebraic Connectivity ($\lambda_2$) using the Graph Laplacian.
     * **Robustness**: Simulation of random failures vs. targeted attacks (percolation theory).
-* **Automation**: Full workflow managed by **Snakemake**.
+* **Performance Optimization (Module 2)**:
+    * **Parallel Computing**: Uses `joblib` and `Snakemake` threads to parallelize community detection and file parsing.
+    * **JIT Compilation**: Integrating `Numba` to accelerate heavy mathematical correlations.
+    * **Algorithmic Efficiency**: Optimized graph filtering using `heapq` and vector-based Pandas operations.
+* **Automation (Module 3)**: Full workflow managed by **Snakemake**.
 
 ## 📂 Project Structure
 
@@ -30,25 +34,25 @@ Below is a preview of the **Giant Component** of the co-authorship network.
     ├── results/                # Generated scientific outputs
     ├── src/                    # Source code modules
     │   ├── analysis/           # Physics & Topology logic
-    │   │   ├── communities.py  # Louvain community detection
-    │   │   ├── physics.py      # Power laws & Robustness
-    │   │   └── structural.py   # Centrality & Path metrics
+    │   │   ├── communities.py  # Louvain community detection (Parallelized)
+    │   │   ├── physics.py      # Power laws & Robustness (Optimized)
+    │   │   └── structural.py   # Centrality & Path metrics (Numba JIT)
     │   ├── constants.py        # Project-wide constants
-    │   ├── networks.py         # Graph construction logic
-    │   ├── preprocessing.py    # ETL & Text cleaning
+    │   ├── networks.py         # Graph construction logic (Vectorized)
+    │   ├── preprocessing.py    # ETL & Text cleaning (Parallelized)
     │   └── visualization.py    # Plotting & PyVis generation
     ├── tests/                  # Pytest suite
     ├── environment.yml         # Conda environment definition
     ├── main.py                 # CLI entry point
     └── Snakefile               # Automated workflow pipeline
 
-## 🛠️ Installation
+## Installation
 
-This project uses **Conda** for environment management and is optimized for Apple Silicon (M1/M2/M3) and standard architectures.
+This project uses **Conda** for environment management.
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/EhsanQoreishi/hep-network-analysis.git
+    git clone [https://github.com/EhsanQoreishi/hep-network-analysis.git](https://github.com/EhsanQoreishi/hep-network-analysis.git)
     cd hep-network-analysis
     ```
 
@@ -62,15 +66,14 @@ This project uses **Conda** for environment management and is optimized for Appl
     conda activate hep_network_analysis
     ```
 
-## 📊 Usage
+## Usage
 
 ### Automated Pipeline (Recommended)
 This project uses **Snakemake** to automate the entire analysis. It checks for file changes and only runs necessary steps.
 
 ```bash
-snakemake -c1
-```
-* `-c1`: Uses 1 CPU core. Increase this (e.g., `-c4`) for parallel execution.
+snakemake -c4
+
 
 ### Manual Execution (CLI)
 You can also run the script manually with custom arguments:
@@ -79,7 +82,7 @@ You can also run the script manually with custom arguments:
 python main.py --data data/cit-HepTh.txt --abstracts data/cit-HepTh-abstracts --output results/
 ```
 
-## ✅ Testing
+## Testing
 
 Strict software engineering standards are enforced using `pytest`. The suite covers data cleaning logic, network integrity, and physics calculations.
 
@@ -88,7 +91,7 @@ To run the tests:
 pytest tests/  
 ```
 
-## 🔬 Scientific Results & Interpretation
+## Scientific Results & Interpretation
 
 The automated pipeline generated the following physics analysis, validated by the study of the Hep-Th community:
 
@@ -121,6 +124,6 @@ The network exhibits an exceptionally well-defined partitioning into distinct re
 * **Semantic Validation**: Topological clusters were mapped to specific sub-fields using keyword metadata. For example, **Community 4** represents core theorists (keywords: quivers, mssm), while **Community 1** represents Mathematical Physics and Statistical Mechanics (keywords: ramanujan, spinon).
 * **Small-World Properties**: The network features a high Average Clustering Coefficient of **0.4370** and an Average Path Length of **4.82**, ensuring information can flow rapidly through a dense web of local collaborations.
 
-## 📚 Data Source
+## Data Source
 
 * **Citation Network**: [SNAP: ArXiv HEP-TH](https://snap.stanford.edu/data/cit-HepTh.html)
