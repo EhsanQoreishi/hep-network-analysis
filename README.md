@@ -41,12 +41,12 @@ The network exhibits an exceptionally well-defined partitioning into distinct re
     ├── results/                # Generated scientific outputs
     ├── src/                    # Source code modules
     │   ├── analysis/           # Physics & Topology logic
-    │   │   ├── communities.py  # Louvain community detection (Parallelized)
-    │   │   ├── physics.py      # Power laws & Robustness (Optimized)
-    │   │   └── structural.py   # Centrality & Path metrics (Numba JIT)
+    │   │   ├── communities.py  # Louvain community detection
+    │   │   ├── physics.py      # Power laws & Robustness
+    │   │   └── structural.py   # Centrality & Path metrics
     │   ├── constants.py        # Project-wide constants
-    │   ├── networks.py         # Graph construction logic (Vectorized)
-    │   ├── preprocessing.py    # ETL & Text cleaning (Parallelized)
+    │   ├── networks.py         # Graph construction logic
+    │   ├── preprocessing.py    # ETL & Text cleaning
     │   └── visualization.py    # Plotting & PyVis generation
     ├── tests/                  # Pytest suite
     ├── environment.yml         # Conda environment definition
