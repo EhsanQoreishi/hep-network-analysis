@@ -7,21 +7,7 @@ from pyvis.network import Network
 
 logger = logging.getLogger(__name__)
 
-
-def visualize_network(
-    G: nx.Graph, title: str = "results/hep_interactive_map.html"
-) -> None:
-    """
-        Generates a high-fidelity interactive HTML visualization of the network topology.
-    To ensure visual interpretability and performance, the function extracts the
-    top 500 nodes by degree (hubs) and projects their connectivity. Nodes are
-    scaled by their degree centrality and color-coded based on their detected
-    Louvain community membership (recalculated for the subgraph).
-    Args:
-        G (nx.Graph): The social network graph.
-        title (str): Path where the HTML file will be saved.
-    """
-
+def visualize_network(G: nx.Graph, title: str = "results/hep_interactive_map.html") -> None:
     logger.info("--- Projecting Interactive Topological Map ---")
     output_dir = os.path.dirname(title)
     if output_dir:
@@ -35,7 +21,7 @@ def visualize_network(
 
     net = Network(height="100vh", width="100%", bgcolor="#222222", font_color="white")
 
-    partition = community_louvain.best_partition(G_sub)
+    partition = community_louvain.best_partition(G_sub, random_state=0)
 
     for node in G_sub.nodes():
         comm_id = partition.get(node, 0)

@@ -6,7 +6,7 @@ from typing import Set
 
 import networkx as nx
 
-from src.analysis.communities import analyze_communities_robust
+from src.analysis.communities import analyze_communities_robust, check_community_distribution
 from src.analysis.physics import (
     analyze_configuration_model,
     analyze_power_law,
@@ -14,24 +14,20 @@ from src.analysis.physics import (
     analyze_spectral_properties,
 )
 from src.analysis.structural import (
+    analyze_degree_correlation,
     analyze_layer_shortest_paths,
     analyze_multiplex_correlation,
     analyze_strength_distribution,
+    export_centrality_tables,
     get_global_metrics,
     get_top_authors,
+    plot_top_centralities,
 )
 from src.networks import build_networks
 from src.preprocessing import parse_abstracts
 from src.visualization import visualize_network
 
-
 def setup_logging(debug_mode: bool = False):
-    """
-    Configures a dual-logging system:
-    1. Console: Clean high-level info (INFO).
-    2. run_info.log: Clean high-level info (INFO).
-    3. run_debug.log: Detailed technical logs (DEBUG).
-    """
     os.makedirs("logs", exist_ok=True)
 
     logger = logging.getLogger()
@@ -39,9 +35,7 @@ def setup_logging(debug_mode: bool = False):
     logger.handlers = []
 
     simple_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    verbose_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    verbose_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     info_handler = logging.FileHandler("logs/run_info.log", mode="w")
     info_handler.setLevel(logging.INFO)
@@ -59,46 +53,15 @@ def setup_logging(debug_mode: bool = False):
     console_handler.setFormatter(simple_formatter)
     logger.addHandler(console_handler)
 
-    logging.info(
-        "Logging initialized: Info -> logs/run_info.log | Debug -> logs/run_debug.log"
-    )
-
+    logging.info("Logging initialized: Info -> logs/run_info.log | Debug -> logs/run_debug.log")
 
 def main():
-    """
-    Main execution pipeline for HEP-Th Network Analysis.
-    Orchestrates ETL, Network Construction, Physics Analysis, and Visualization.
-    """
-    parser = argparse.ArgumentParser(
-        description="Analyze citation and co-authorship networks from HEP-Th data."
-    )
-    parser.add_argument(
-        "--data",
-        type=str,
-        default="data/cit-HepTh.txt",
-        help="Path to the citation edges text file.",
-    )
-    parser.add_argument(
-        "--abstracts",
-        type=str,
-        default="data/cit-HepTh-abstracts",
-        help="Directory containing abstract files (.abs).",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="results",
-        help="Directory to save output plots and HTML files.",
-    )
-    parser.add_argument(
-        "--jobs",
-        type=int,
-        default=-1,
-        help="Number of CPU cores for parallel processing (-1 = all).",
-    )
-    parser.add_argument(
-        "--debug", action="store_true", help="Enable verbose debug logging."
-    )
+    parser = argparse.ArgumentParser(description="Analyze citation and co-authorship networks from HEP-Th data.")
+    parser.add_argument("--data", type=str, default="data/cit-HepTh.txt", help="Path to the citation edges text file.")
+    parser.add_argument("--abstracts", type=str, default="data/cit-HepTh-abstracts", help="Directory containing abstract files (.abs).")
+    parser.add_argument("--output", type=str, default="results", help="Directory to save output plots and HTML files.")
+    parser.add_argument("--jobs", type=int, default=-1, help="Number of CPU cores for parallel processing (-1 = all).")
+    parser.add_argument("--debug", action="store_true", help="Enable verbose debug logging.")
 
     args = parser.parse_args()
     setup_logging(args.debug)
@@ -107,16 +70,12 @@ def main():
     os.makedirs(args.output, exist_ok=True)
     logger.info(f"Results will be saved to: {args.output}")
 
-    logger.info(
-        f"[Phase 1] Parsing Abstracts from {args.abstracts} (Jobs: {args.jobs})..."
-    )
+    logger.info(f"[Phase 1] Parsing Abstracts from {args.abstracts} (Jobs: {args.jobs})...")
     if not os.path.exists(args.abstracts) or not os.path.exists(args.data):
         logger.error("Data files not found. Please check your paths.")
         sys.exit(1)
 
-    paper_to_authors, paper_to_text, author_to_papers = parse_abstracts(
-        args.abstracts, n_jobs=args.jobs
-    )
+    paper_to_authors, paper_to_text, author_to_papers = parse_abstracts(args.abstracts, n_jobs=args.jobs)
 
     logger.info("[Phase 2] Building Networks...")
     G_co, G_cit = build_networks(args.data, paper_to_authors)
@@ -144,29 +103,70 @@ def main():
 
     logger.info("[Phase 4] Running Structural & Physics Analysis...")
 
+    logger.info("--- Global Metrics: Social Layer ---")
     get_global_metrics(G_social)
+    logger.info("--- Global Metrics: Citation Layer ---")
+    get_global_metrics(G_intellectual)
+
     get_top_authors(G_social, G_intellectual)
+
+    export_centrality_tables(G_social, output_dir=args.output, top_n=10)
+    plot_top_centralities(G_social, output_dir=args.output, top_n=10)
+
+    analyze_degree_correlation(G_social, G_intellectual, output_dir=args.output)
+
     analyze_strength_distribution(G_social, name="Social-Layer", output_dir=args.output)
+    analyze_strength_distribution(G_intellectual, name="Citation-Layer", output_dir=args.output)
 
     analyze_power_law(G_social, name="Social-Layer", output_dir=args.output)
-    analyze_spectral_properties(G_social, output_dir=args.output)
-    analyze_robustness(G_social, output_dir=args.output)
-    analyze_configuration_model(G_social, output_dir=args.output)
+    analyze_power_law(G_intellectual, name="Citation-Layer", output_dir=args.output)
 
-    analyze_layer_shortest_paths(G_intellectual, G_social, output_dir=args.output)
+    logger.info("--- Physics Analysis: Social Layer ---")
+    analyze_spectral_properties(G_social, name="Social-Layer", output_dir=args.output)
+    analyze_robustness(G_social, name="Social-Layer", output_dir=args.output)
+    analyze_configuration_model(G_social, name="Social-Layer", output_dir=args.output)
+
+    logger.info("--- Physics Analysis: Citation Layer ---")
+    analyze_spectral_properties(G_intellectual, name="Citation-Layer", output_dir=args.output)
+    analyze_robustness(G_intellectual, name="Citation-Layer", output_dir=args.output)
+    analyze_configuration_model(G_intellectual, name="Citation-Layer", output_dir=args.output)
+
+    cross_layer = analyze_layer_shortest_paths(G_intellectual, G_social, output_dir=args.output)
+    if isinstance(cross_layer, dict):
+        logger.info(f"Cross-layer mean distance (hops): {cross_layer.get('avg_hops', 0.0):.4f}")
+        logger.info(f"Cross-layer mean distance (weighted): {cross_layer.get('avg_weighted', 0.0):.4f}")
+
     analyze_multiplex_correlation(G_social, G_intellectual, output_dir=args.output)
 
-    logger.info("[Phase 5] Detecting Communities & Topics (Jobs: {args.jobs})...")
+    logger.info(f"[Phase 5] Detecting Communities & Topics (Jobs: {args.jobs})...")
 
     analyze_communities_robust(
-        G_social, author_to_papers, paper_to_text, n_iterations=5, n_jobs=args.jobs
+        G_social,
+        author_to_papers,
+        paper_to_text,
+        layer_name="Social-Layer",
+        n_iterations=5,
+        n_jobs=args.jobs,
+        output_dir=args.output,
     )
+
+    analyze_communities_robust(
+        G_intellectual,
+        author_to_papers,
+        paper_to_text,
+        layer_name="Citation-Layer",
+        n_iterations=5,
+        n_jobs=args.jobs,
+        output_dir=args.output,
+    )
+
+    check_community_distribution(G_social, layer_name="Social-Layer", output_dir=args.output)
+    check_community_distribution(G_intellectual, layer_name="Citation-Layer", output_dir=args.output)
 
     logger.info("[Phase 6] Generating Interactive Map...")
     visualize_network(G_social, title=os.path.join(args.output, "interactive_map.html"))
 
     logger.info(f"Done! All results saved to: {args.output}")
-
 
 if __name__ == "__main__":
     main()

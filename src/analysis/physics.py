@@ -13,29 +13,57 @@ from scipy.stats import gaussian_kde
 
 logger = logging.getLogger(__name__)
 
+def _sanitize_name(name: str) -> str:
+    return (
+        name.strip()
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+        .replace("(", "")
+        .replace(")", "")
+        .replace(":", "")
+        .replace(",", "")
+        .replace("__", "_")
+    )
 
-def analyze_power_law(
-    G: nx.Graph, name: str = "Network", output_dir: str = "results"
-) -> Dict[str, Any]:
-    """
-    Fits the degree distribution to a Power Law (Scale-Free Network check).
+def _savefig(path: str) -> None:
+    base, ext = os.path.splitext(path)
+    if ext.lower() != ".pdf":
+        path = base + ".pdf"
+    plt.savefig(path, format="pdf", bbox_inches="tight")
+    logger.info(f"Saved figure to: {path}")
 
-    Physics:
-    - Alpha < 3.5 implies a Heavy-Tailed distribution (Hubs exist).
-    - Compares Power Law vs Log-Normal fit.
+def _ensure_distance_attribute(G: nx.Graph) -> None:
+    for u, v, d in G.edges(data=True):
+        if "distance" in d:
+            continue
+        w = d.get("weight", None)
+        if w is None:
+            d["distance"] = 1.0
+        else:
+            try:
+                wf = float(w)
+                d["distance"] = (1.0 / wf) if wf > 0 else 1.0
+            except Exception:
+                d["distance"] = 1.0
 
-    Args:
-        G (nx.Graph): The network graph.
-        name (str): Label for the plot.
-        output_dir (str): Directory to save results.
-
-    Returns:
-        Dict: Contains 'alpha', 'xmin', 'distribution_compare_p_value'.
-    """
+def analyze_power_law(G: nx.Graph, name: str = "Network", output_dir: str = "results") -> Dict[str, Any]:
     logger.info(f"--- Heavy-Tail Distribution Analysis ({name}) ---")
 
-    degrees = np.array([d for _, d in G.degree()])
+    if G.is_directed():
+        degrees = np.array([d for _, d in G.in_degree()])
+        x_label = "In-Degree (k)"
+    else:
+        degrees = np.array([d for _, d in G.degree()])
+        x_label = "Degree (k)"
+
     degrees = degrees[degrees > 0]
+
+    if len(degrees) < 10:
+        logger.warning(f"Not enough data points for Power Law fit in {name}.")
+        return {}
 
     fit = powerlaw.Fit(degrees, discrete=True, verbose=False)
 
@@ -47,9 +75,7 @@ def analyze_power_law(
     logger.info("[Physics Interpretation]")
     if fit.power_law.alpha < 3.5:
         logger.info("  -> Verdict: The distribution is HEAVY-TAILED.")
-        logger.info(
-            "  -> Physical Meaning: The network is dominated by 'Hubs' (Super-Connectors)."
-        )
+        logger.info("  -> Physical Meaning: The network is dominated by 'Hubs' (Super-Connectors).")
     else:
         logger.info("  -> Verdict: The distribution decays quickly.")
 
@@ -60,55 +86,49 @@ def analyze_power_law(
     fit.lognormal.plot_pdf(color="g", linestyle="-.", label="Log-Normal Fit")
 
     plt.title(f"Degree Distribution ({name})")
-    plt.xlabel("Degree (k)")
+    plt.xlabel(x_label)
     plt.ylabel("P(k)")
     plt.legend()
     plt.grid(True, alpha=0.3)
 
-    save_path = os.path.join(
-        output_dir, f"{name.lower().replace('-', '_')}_power_law_fit.png"
-    )
-    plt.savefig(save_path)
+    safe_name = _sanitize_name(name)
+    save_path = os.path.join(output_dir, f"{safe_name}_degree_distribution_powerlaw.pdf")
+    _savefig(save_path)
     plt.close()
 
     return {
-        "alpha": fit.power_law.alpha,
-        "xmin": fit.power_law.xmin,
-        "compare_R": R,
-        "compare_p": p,
+        "alpha": float(fit.power_law.alpha),
+        "xmin": float(fit.power_law.xmin),
+        "compare_R": float(R),
+        "compare_p": float(p),
     }
 
-
-def analyze_spectral_properties(
-    G: nx.Graph, output_dir: str = "results"
-) -> Dict[str, float]:
-    """
-    Analyzes the Eigenvalues of the Laplacian Matrix.
-
-    Metrics:
-    - Spectral Gap (lambda_2): Relates to diffusion time (tau ~ 1/lambda_2).
-    - Von Neumann Entropy: Measure of structural order vs randomness.
-
-    Returns:
-        Dict: Contains 'lambda_2', 'diffusion_time', 'vn_entropy'.
-    """
+def analyze_spectral_properties(G: nx.Graph, name: str = "Network", output_dir: str = "results") -> Dict[str, float]:
     logger.info("--- Spectral Analysis (Laplacian & Entropy) ---")
 
-    if not nx.is_connected(G):
-        logger.warning(
-            "Graph disconnected. Using Giant Connected Component for spectral metrics."
-        )
-        G_cc = G.subgraph(max(nx.connected_components(G), key=len)).copy()
+    if G.is_directed():
+        G_for_spectral = G.to_undirected()
+        logger.info("  (Converting directed graph to undirected for spectral analysis)")
     else:
-        G_cc = G.copy()
+        G_for_spectral = G.copy()
+
+    _ensure_distance_attribute(G_for_spectral)
+
+    if not nx.is_connected(G_for_spectral):
+        logger.warning("Graph disconnected. Using Giant Connected Component for spectral metrics.")
+        G_cc = G_for_spectral.subgraph(max(nx.connected_components(G_for_spectral), key=len)).copy()
+    else:
+        G_cc = G_for_spectral.copy()
 
     n = G_cc.number_of_nodes()
+
+    _ensure_distance_attribute(G_cc)
 
     try:
         avg_path_len = nx.average_shortest_path_length(G_cc, weight="distance")
     except nx.NetworkXError:
-        avg_path_len = np.log(n)
-    logger.info(f"  Average Path Length (L): {avg_path_len:.2f}")
+        avg_path_len = float(np.log(max(n, 2)))
+    logger.info(f"  Average Path Length (L, weighted): {avg_path_len:.4f}")
 
     logger.info("  Computing Normalized Laplacian Matrix...")
     L = nx.normalized_laplacian_matrix(G_cc)
@@ -126,14 +146,18 @@ def analyze_spectral_properties(
         logger.error("Graph too large for diagonalization.")
         return {}
 
-    eigenvalues.sort()
+    eigenvalues = np.sort(np.array(eigenvalues, dtype=float))
 
-    lambda_2 = eigenvalues[1] if len(eigenvalues) > 1 else 0.0
-    diffusion_time = 1.0 / lambda_2 if lambda_2 > 1e-9 else float("inf")
+    lambda_2 = float(eigenvalues[1]) if len(eigenvalues) > 1 else 0.0
+    diffusion_time = float(1.0 / lambda_2) if lambda_2 > 1e-9 else float("inf")
 
-    rho = eigenvalues / np.sum(eigenvalues)
-    vn_entropy = -np.sum(rho * np.log(rho + 1e-12))
-    max_entropy = np.log(n)
+    denom = float(np.sum(eigenvalues))
+    if denom <= 0:
+        return {}
+
+    rho = eigenvalues / denom
+    vn_entropy = float(-np.sum(rho * np.log(rho + 1e-12)))
+    max_entropy = float(np.log(max(n, 2)))
 
     logger.info("Spectral Metrics:")
     logger.info(f"  Algebraic Connectivity (lambda_2): {lambda_2:.6f}")
@@ -144,43 +168,44 @@ def analyze_spectral_properties(
     plt.figure(figsize=(10, 6))
     try:
         kde = gaussian_kde(eigenvalues)
-        x_range = np.linspace(min(eigenvalues), max(eigenvalues), 200)
-        plt.plot(x_range, kde(x_range), color="blue", lw=2, label="Spectral Density")
-        plt.fill_between(x_range, kde(x_range), color="blue", alpha=0.1)
+        x_range = np.linspace(float(np.min(eigenvalues)), float(np.max(eigenvalues)), 200)
+        y_kde = kde(x_range)
+        plt.plot(x_range, y_kde, color="blue", lw=2, label="Spectral Density")
+        plt.fill_between(x_range, y_kde, color="blue", alpha=0.1)
+        plt.legend()
     except Exception:
         plt.hist(eigenvalues, bins=50, color="blue", alpha=0.5)
 
-    plt.title(f"Spectral Density (Entropy S={vn_entropy:.2f})")
+    plt.title(f"Spectral Density ({name}) (Entropy S={vn_entropy:.2f})")
     plt.xlabel(r"Eigenvalue ($\lambda$)")
     plt.ylabel("Density")
     plt.grid(True, alpha=0.3)
 
-    plt.savefig(os.path.join(output_dir, "spectral_density_entropy.png"))
+    safe_name = _sanitize_name(name)
+    save_path = os.path.join(output_dir, f"{safe_name}_spectral_density_entropy.pdf")
+    _savefig(save_path)
     plt.close()
 
     return {
-        "lambda_2": lambda_2,
-        "diffusion_time": diffusion_time,
-        "vn_entropy": vn_entropy,
+        "avg_path_length": float(avg_path_len),
+        "lambda_2": float(lambda_2),
+        "diffusion_time": float(diffusion_time),
+        "vn_entropy": float(vn_entropy),
+        "max_entropy": float(max_entropy),
+        "n_gcc": float(n),
     }
 
-
-def analyze_robustness(
-    G: nx.Graph, output_dir: str = "results"
-) -> Dict[str, List[float]]:
-    """
-    Percolation Analysis: Simulates node removal to test network fragility.
-    Compares Random Failure vs Targeted Attack (removing hubs).
-
-    Optimized: Uses adaptive step sizes to avoid O(N^2) complexity on large graphs.
-
-    Returns:
-        Dict: Lists of GCC sizes for 'random' and 'attack' scenarios.
-    """
+def analyze_robustness(G: nx.Graph, name: str = "Network", output_dir: str = "results") -> Dict[str, List[float]]:
     logger.info("--- Robustness & Perturbation Analysis ---")
 
+    if G.is_directed():
+        logger.info("  (Converting directed graph to undirected for robustness analysis)")
+        G_undirected = G.to_undirected()
+    else:
+        G_undirected = G
+
     fraction_to_remove = 0.2
-    n_total = G.number_of_nodes()
+    n_total = G_undirected.number_of_nodes()
     n_remove = int(n_total * fraction_to_remove)
 
     steps_to_simulate = 50
@@ -189,20 +214,19 @@ def analyze_robustness(
     logger.info(f"  Simulating removal of {int(fraction_to_remove * 100)}% nodes...")
     logger.info(f"  Optimization: Computing GCC every {step_size} removals.")
 
-    G_attack = G.copy()
-    targets = sorted(G.degree, key=lambda x: x[1], reverse=True)
+    G_attack = G_undirected.copy()
+    targets = sorted(G_undirected.degree, key=lambda x: x[1], reverse=True)
     target_nodes = [n for n, _ in targets]
     attack_sizes = [1.0]
 
-    G_random = G.copy()
-    random_targets = list(G.nodes())
+    G_random = G_undirected.copy()
+    random_targets = list(G_undirected.nodes())
     random.shuffle(random_targets)
     random_sizes = [1.0]
 
     for i in range(0, n_remove, step_size):
         batch_attack = target_nodes[i : i + step_size]
         G_attack.remove_nodes_from(batch_attack)
-
         if len(G_attack) > 0:
             gcc_a = len(max(nx.connected_components(G_attack), key=len))
             attack_sizes.append(gcc_a / n_total)
@@ -211,7 +235,6 @@ def analyze_robustness(
 
         batch_random = random_targets[i : i + step_size]
         G_random.remove_nodes_from(batch_random)
-
         if len(G_random) > 0:
             gcc_r = len(max(nx.connected_components(G_random), key=len))
             random_sizes.append(gcc_r / n_total)
@@ -221,48 +244,50 @@ def analyze_robustness(
     x_axis = np.linspace(0, fraction_to_remove, len(attack_sizes))
 
     os.makedirs(output_dir, exist_ok=True)
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(8.5, 6))
     plt.plot(x_axis, random_sizes, "g-o", label="Random Failure")
-    plt.plot(x_axis, attack_sizes, "r-s", label="Targeted Attack (Hubs)")
-
-    plt.title("Percolation Threshold: Network Robustness")
-    plt.xlabel("Fraction of Nodes Removed ($f$)")
-    plt.ylabel("Giant Component Size ($S$)")
+    plt.plot(x_axis, attack_sizes, "r-s", label="Targeted Attack (Degree hubs)")
+    plt.title(f"Network Robustness ({name})")
+    plt.xlabel("Fraction of nodes removed (f)")
+    plt.ylabel("Giant component size (S)")
     plt.legend()
     plt.grid(True, alpha=0.3)
 
-    plt.savefig(os.path.join(output_dir, "network_robustness.png"))
+    safe_name = _sanitize_name(name)
+    save_path = os.path.join(output_dir, f"{safe_name}_network_robustness.pdf")
+    _savefig(save_path)
     plt.close()
 
     return {"random_sizes": random_sizes, "attack_sizes": attack_sizes}
 
-
 def analyze_configuration_model(
-    G: nx.Graph, n_randomizations: int = 10, output_dir: str = "results"
+    G: nx.Graph, name: str = "Network", n_randomizations: int = 10, output_dir: str = "results"
 ) -> Dict[str, float]:
-    """
-    Compares real clustering to a randomized Configuration Model (Null Model).
-
-    Returns:
-        Dict: Contains 'C_real', 'C_null_avg', 'z_score'.
-    """
     logger.info("--- Null Model Comparison ---")
+    logger.info(f"  Randomizations: {int(n_randomizations)}")
 
-    if not nx.is_connected(G):
-        G_cc = G.subgraph(max(nx.connected_components(G), key=len)).copy()
+    if G.is_directed():
+        logger.info("  (Using to_undirected() for configuration model comparison)")
+        G_undirected = G.to_undirected()
     else:
-        G_cc = G.copy()
+        G_undirected = G
 
-    C_real = nx.average_clustering(G_cc)
+    if not nx.is_connected(G_undirected):
+        G_cc = G_undirected.subgraph(max(nx.connected_components(G_undirected), key=len)).copy()
+    else:
+        G_cc = G_undirected.copy()
 
-    null_clustering_values = []
+    C_real = float(nx.average_clustering(G_cc))
+
+    null_clustering_values: List[float] = []
     n_swaps = 5 * G_cc.number_of_edges()
+    logger.info(f"  Edge swaps per randomization: {int(n_swaps)}")
 
     for _ in range(n_randomizations):
         G_null = G_cc.copy()
         try:
             nx.double_edge_swap(G_null, nswap=n_swaps, max_tries=n_swaps * 5)
-            null_clustering_values.append(nx.average_clustering(G_null))
+            null_clustering_values.append(float(nx.average_clustering(G_null)))
         except nx.NetworkXError:
             pass
 
@@ -270,9 +295,9 @@ def analyze_configuration_model(
         logger.warning("Null model generation failed (graph might be too small/dense).")
         return {}
 
-    avg_null_C = np.mean(null_clustering_values)
-    std_null_C = np.std(null_clustering_values)
-    z_score = (C_real - avg_null_C) / std_null_C if std_null_C > 1e-9 else 0.0
+    avg_null_C = float(np.mean(null_clustering_values))
+    std_null_C = float(np.std(null_clustering_values))
+    z_score = float((C_real - avg_null_C) / std_null_C) if std_null_C > 1e-9 else 0.0
 
     logger.info(f"  Real Clustering: {C_real:.4f}")
     logger.info(f"  Null Model <C>:  {avg_null_C:.4f}")
@@ -281,12 +306,16 @@ def analyze_configuration_model(
     os.makedirs(output_dir, exist_ok=True)
     plt.figure(figsize=(8, 5))
     plt.hist(null_clustering_values, color="gray", alpha=0.7, label="Null Model")
-    plt.axvline(
-        C_real, color="red", linestyle="dashed", linewidth=2, label="Real Network"
-    )
-    plt.title(f"Null Model Comparison (Z={z_score:.2f})")
+    plt.axvline(C_real, color="red", linestyle="dashed", linewidth=2, label="Real Network")
+    plt.title(f"Configuration-Model Clustering ({name}) (Z={z_score:.2f})")
+    plt.xlabel("Average clustering coefficient")
+    plt.ylabel("Frequency")
     plt.legend()
-    plt.savefig(os.path.join(output_dir, "configuration_model_comparison.png"))
+    plt.grid(True, alpha=0.25)
+
+    safe_name = _sanitize_name(name)
+    save_path = os.path.join(output_dir, f"{safe_name}_configuration_model_clustering.pdf")
+    _savefig(save_path)
     plt.close()
 
     return {"C_real": C_real, "C_null_avg": avg_null_C, "z_score": z_score}

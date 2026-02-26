@@ -1,89 +1,194 @@
-2026-02-02 19:49:36,827 - INFO - Logging initialized: Info -> logs/run_info.log | Debug -> logs/run_debug.log
-2026-02-02 19:49:36,828 - INFO - Results will be saved to: results
-2026-02-02 19:49:36,828 - INFO - [Phase 1] Parsing Abstracts from data/cit-HepTh-abstracts (Jobs: 4)...
-2026-02-02 19:49:36,828 - INFO - Scanning abstracts in data/cit-HepTh-abstracts...
-2026-02-02 19:49:36,856 - INFO - Found 29555 abstract files. Parsing in parallel...
-2026-02-02 19:49:38,216 - INFO - Parsed 29555 papers successfully.
-2026-02-02 19:49:38,217 - INFO - [Phase 2] Building Networks...
-2026-02-02 19:49:38,218 - INFO - Building Author Networks...
-2026-02-02 19:49:38,245 - INFO - Co-authorship matrix shape: (8814, 8814) with 38388 edges
-2026-02-02 19:49:38,359 - INFO - Processing citation edges (Vectorized)...
-2026-02-02 19:49:38,703 - INFO - Constructing Citation Graph from 201184 unique weighted edges...
-2026-02-02 19:49:38,919 - INFO - [Phase 3] Aligning Network Layers...
-2026-02-02 19:49:39,223 - INFO -   Original Nodes: 8814
-2026-02-02 19:49:39,223 - INFO -   Intersection Nodes: 5800
-2026-02-02 19:49:39,223 - INFO -   Final Analysis Set (GCC): 4658 authors
-2026-02-02 19:49:39,223 - INFO - [Phase 4] Running Structural & Physics Analysis...
-2026-02-02 19:49:39,223 - INFO - --- Global Graph Metrics ---
-2026-02-02 19:49:39,299 - INFO - Nodes: 4658, Edges: 13757
-2026-02-02 19:49:39,299 - INFO - Edge Density: 0.001268
-2026-02-02 19:49:39,299 - INFO - Global Clustering Coeff (Transitivity): 0.1945
-2026-02-02 19:49:39,299 - INFO - Average Clustering Coefficient: 0.4370
-2026-02-02 19:49:39,299 - INFO - --- Centrality Analysis ---
-2026-02-02 19:49:39,300 - INFO - Most Collaborative (High Degree):
-2026-02-02 19:49:39,300 - INFO -   - C. Vafa: 59 co-authors
-2026-02-02 19:49:39,300 - INFO -   - S. Ferrara: 56 co-authors
-2026-02-02 19:49:39,300 - INFO -   - G. Gibbons: 53 co-authors
-2026-02-02 19:49:39,300 - INFO -   - A. Strominger: 52 co-authors
-2026-02-02 19:49:39,300 - INFO -   - M. Douglas: 51 co-authors
-2026-02-02 19:49:39,328 - INFO - Most Influential (High Citations):
-2026-02-02 19:49:39,328 - INFO -   - E. Witten: 19721.0 citations
-2026-02-02 19:49:39,328 - INFO -   - N. Seiberg: 10517.0 citations
-2026-02-02 19:49:39,329 - INFO -   - C. Vafa: 9471.0 citations
-2026-02-02 19:49:39,329 - INFO -   - A. Strominger: 7101.0 citations
-2026-02-02 19:49:39,329 - INFO -   - P. Townsend: 6662.0 citations
-2026-02-02 19:49:39,329 - INFO - Calculating Betweenness Centrality (this may take a moment)...
-2026-02-02 19:49:47,866 - INFO - Top Bridges (High Betweenness):
-2026-02-02 19:49:47,867 - INFO -   - P. Townsend: 0.0828
-2026-02-02 19:49:47,867 - INFO -   - R. Szabo: 0.0667
-2026-02-02 19:49:47,867 - INFO -   - S. Ferrara: 0.0632
-2026-02-02 19:49:47,867 - INFO -   - S. Odintsov: 0.0604
-2026-02-02 19:49:47,867 - INFO -   - I. Kogan: 0.0578
-2026-02-02 19:49:47,867 - INFO - --- Weighted Strength Analysis (Social-Layer) ---
-2026-02-02 19:49:48,310 - INFO -   Fit exponent (beta): 1.1311
-2026-02-02 19:49:48,310 - INFO -   -> Super-linear (beta > 1): Hubs work harder/more intensely.
-2026-02-02 19:49:48,884 - INFO - --- Heavy-Tail Distribution Analysis (Social-Layer) ---
-2026-02-02 19:49:48,930 - INFO -   Power Law Alpha: 2.9325
-2026-02-02 19:49:48,930 - INFO -   Xmin (Cutoff):   9.0
-2026-02-02 19:49:48,933 - INFO - [Physics Interpretation]
-2026-02-02 19:49:48,933 - INFO -   -> Verdict: The distribution is HEAVY-TAILED.
-2026-02-02 19:49:48,933 - INFO -   -> Physical Meaning: The network is dominated by 'Hubs' (Super-Connectors).
-2026-02-02 19:49:49,022 - INFO - --- Spectral Analysis (Laplacian & Entropy) ---
-2026-02-02 19:50:26,014 - INFO -   Average Path Length (L): 2.95
-2026-02-02 19:50:26,014 - INFO -   Computing Normalized Laplacian Matrix...
-2026-02-02 19:50:26,026 - INFO -   Calculating Eigenvalues...
-2026-02-02 19:50:26,026 - INFO -   (Graph large: approximating spectral density with k=100)
-2026-02-02 19:50:26,573 - INFO - Spectral Metrics:
-2026-02-02 19:50:26,573 - INFO -   Algebraic Connectivity (lambda_2): 0.009580
-2026-02-02 19:50:26,573 - INFO -   Diffusion Time (tau): approx 104.39 steps
-2026-02-02 19:50:26,573 - INFO -   Von Neumann Entropy (S): 4.4959 (Max: 8.4463)
-2026-02-02 19:50:26,614 - INFO - --- Robustness & Perturbation Analysis ---
-2026-02-02 19:50:26,614 - INFO -   Simulating removal of 20% nodes...
-2026-02-02 19:50:26,614 - INFO -   Optimization: Computing GCC every 18 removals.
-2026-02-02 19:50:26,826 - INFO - --- Null Model Comparison ---
-2026-02-02 19:50:31,097 - INFO -   Real Clustering: 0.4370
-2026-02-02 19:50:31,097 - INFO -   Null Model <C>:  0.0041
-2026-02-02 19:50:31,097 - INFO -   Z-Score:         673.05
-2026-02-02 19:50:31,131 - INFO - --- Cross-Layer Path Analysis ---
-2026-02-02 19:56:51,399 - INFO - Analyzed 188726 valid pairs connected in Citation layer.
-2026-02-02 19:56:51,400 - INFO - Average Co-authorship distance for these pairs: 1.39
-2026-02-02 19:56:51,600 - INFO - --- Multiplex Correlation Analysis ---
-2026-02-02 19:57:00,459 - INFO -   Spearman Correlation: 0.5751 (p=0.0000e+00)
-2026-02-02 19:57:00,675 - INFO - [Phase 5] Detecting Communities & Topics (Jobs: {args.jobs})...
-2026-02-02 19:57:00,675 - INFO - Starting Robust Community Detection & Stability Analysis...
-2026-02-02 19:57:00,733 - INFO - Running Louvain 5 times (Parallel n_jobs=4)...
-2026-02-02 19:57:02,886 - INFO - Stability Results:
-2026-02-02 19:57:02,886 - INFO -   Average Modularity (Q): 0.7732
-2026-02-02 19:57:02,886 - INFO -   Stability (Avg ARI):    0.6191
-2026-02-02 19:57:02,886 - INFO -   -> Strong community structure found (Q > 0.4).
-2026-02-02 19:57:03,722 - INFO - --- Top Topics per Community ---
-2026-02-02 19:57:03,722 - INFO - Community 4 (Size: 386): throats, spencer, doubleton, quivers, millimeter, mssm, ext, enhancon
-2026-02-02 19:57:03,722 - INFO - Community 33 (Size: 242): anholonomic, csm, antibrackets, ng, alc, smilga, sec, wdvv
-2026-02-02 19:57:03,723 - INFO - Community 1 (Size: 213): bailey, ferroelectric, spinon, andrews, zelevinsky, rogers, ramanujan, forrester
-2026-02-02 19:57:03,723 - INFO - Community 6 (Size: 197): bft, lf, reflexive, ng, ohmic, greybody, superradiant, stuckelberg
-2026-02-02 19:57:03,723 - INFO - Community 3 (Size: 190): billiard, ddf, helicities, nlie, leibbrandt, borcherds, isomonodromic, cuts
-2026-02-02 19:57:03,724 - INFO - [Phase 6] Generating Interactive Map...
-2026-02-02 19:57:03,724 - INFO - --- Projecting Interactive Topological Map ---
-2026-02-02 19:57:03,725 - INFO -   Rendering subgraph with 500 nodes (Top Hubs)...
-2026-02-02 19:57:03,941 - INFO -   Success! Interactive map saved to: results/interactive_map.html
-2026-02-02 19:57:03,941 - INFO - Done! All results saved to: results
+2026-02-24 15:57:56,027 - INFO - Logging initialized: Info -> logs/run_info.log | Debug -> logs/run_debug.log
+2026-02-24 15:57:56,027 - INFO - Results will be saved to: results
+2026-02-24 15:57:56,027 - INFO - [Phase 1] Parsing Abstracts from data/cit-HepTh-abstracts (Jobs: 4)...
+2026-02-24 15:57:56,027 - INFO - Scanning abstracts in data/cit-HepTh-abstracts...
+2026-02-24 15:57:56,057 - INFO - Found 29555 abstract files. Parsing in parallel...
+2026-02-24 15:57:57,777 - INFO - Parsed 29555 papers successfully.
+2026-02-24 15:57:57,779 - INFO - [Phase 2] Building Networks...
+2026-02-24 15:57:57,779 - INFO - Building Author Networks...
+2026-02-24 15:57:57,806 - INFO - Co-authorship matrix shape: (8814, 8814) with 38388 edges
+2026-02-24 15:57:57,935 - INFO - Processing citation edges (Vectorized)...
+2026-02-24 15:57:58,327 - INFO - Constructing Citation Graph from 201184 unique weighted edges...
+2026-02-24 15:57:58,559 - INFO - [Phase 3] Aligning Network Layers...
+2026-02-24 15:57:58,885 - INFO -   Original Nodes: 8814
+2026-02-24 15:57:58,886 - INFO -   Intersection Nodes: 5800
+2026-02-24 15:57:58,886 - INFO -   Final Analysis Set (GCC): 4658 authors
+2026-02-24 15:57:58,886 - INFO - [Phase 4] Running Structural & Physics Analysis...
+2026-02-24 15:57:58,886 - INFO - --- Global Metrics: Social Layer ---
+2026-02-24 15:57:58,886 - INFO - --- Global Graph Metrics ---
+2026-02-24 15:57:58,963 - INFO - Nodes: 4658, Edges: 13757
+2026-02-24 15:57:58,964 - INFO - Edge Density: 0.001268
+2026-02-24 15:57:58,964 - INFO - Global Clustering Coeff (Transitivity): 0.1945
+2026-02-24 15:57:58,964 - INFO - Average Clustering Coefficient: 0.4370
+2026-02-24 15:57:58,964 - INFO - --- Global Metrics: Citation Layer ---
+2026-02-24 15:57:58,964 - INFO - --- Global Graph Metrics ---
+2026-02-24 15:58:09,113 - INFO - Nodes: 4658, Edges: 188726
+2026-02-24 15:58:09,113 - INFO - Edge Density: 0.008700
+2026-02-24 15:58:09,113 - INFO - Global Clustering Coeff (Transitivity): 0.3139
+2026-02-24 15:58:09,113 - INFO - Average Clustering Coefficient: 0.3815
+2026-02-24 15:58:09,113 - INFO - --- Centrality Analysis ---
+2026-02-24 15:58:09,114 - INFO - Most Collaborative (High Degree):
+2026-02-24 15:58:09,114 - INFO -   - C. Vafa: 59 co-authors
+2026-02-24 15:58:09,114 - INFO -   - S. Ferrara: 56 co-authors
+2026-02-24 15:58:09,114 - INFO -   - G. Gibbons: 53 co-authors
+2026-02-24 15:58:09,114 - INFO -   - A. Strominger: 52 co-authors
+2026-02-24 15:58:09,114 - INFO -   - M. Douglas: 51 co-authors
+2026-02-24 15:58:09,148 - INFO - Most Influential (Highest citation in-strength):
+2026-02-24 15:58:09,148 - INFO -   - E. Witten: 19721.0 total incoming citations
+2026-02-24 15:58:09,148 - INFO -   - N. Seiberg: 10517.0 total incoming citations
+2026-02-24 15:58:09,148 - INFO -   - C. Vafa: 9471.0 total incoming citations
+2026-02-24 15:58:09,148 - INFO -   - A. Strominger: 7101.0 total incoming citations
+2026-02-24 15:58:09,148 - INFO -   - P. Townsend: 6662.0 total incoming citations
+2026-02-24 15:58:09,148 - INFO - Calculating Betweenness Centrality (this may take a moment)...
+2026-02-24 15:58:18,618 - INFO - Top Bridges (High Betweenness):
+2026-02-24 15:58:18,618 - INFO -   - P. Townsend: 0.0773
+2026-02-24 15:58:18,618 - INFO -   - R. Szabo: 0.0659
+2026-02-24 15:58:18,618 - INFO -   - S. Ferrara: 0.0593
+2026-02-24 15:58:18,618 - INFO -   - S. Odintsov: 0.0567
+2026-02-24 15:58:18,618 - INFO -   - E. Sokatchev: 0.0557
+2026-02-24 15:58:18,618 - INFO - Calculating Closeness Centrality...
+2026-02-24 15:58:58,352 - INFO - Top Closeness:
+2026-02-24 15:58:58,353 - INFO -   - P. Townsend: 0.5807
+2026-02-24 15:58:58,353 - INFO -   - C. Pope: 0.5760
+2026-02-24 15:58:58,353 - INFO -   - M. Cvetic: 0.5753
+2026-02-24 15:58:58,353 - INFO -   - H. Lu: 0.5748
+2026-02-24 15:58:58,353 - INFO -   - G. Gibbons: 0.5737
+2026-02-24 15:59:47,228 - INFO - Saved table to: results/top_betweenness_social.csv
+2026-02-24 15:59:47,228 - INFO - Saved table to: results/top_closeness_social.csv
+2026-02-24 16:00:36,663 - INFO - Saved figure to: results/centrality_betweenness_closeness_social.pdf
+2026-02-24 16:00:36,663 - INFO - --- Degree vs In-Strength Correlation ---
+2026-02-24 16:00:36,702 - INFO -   Spearman Correlation: 0.6498 (p=0.0000e+00)
+2026-02-24 16:00:36,703 - INFO - High citations (in-strength) / Low collaboration (Outliers):
+2026-02-24 16:00:36,703 - INFO -   - E. Witten: 19721.0 citations, 44 co-authors
+2026-02-24 16:00:36,703 - INFO -   - A. Polyakov: 2014.0 citations, 5 co-authors
+2026-02-24 16:00:36,703 - INFO -   - A. Sen: 5615.0 citations, 14 co-authors
+2026-02-24 16:00:36,703 - INFO -   - D. Phong: 693.0 citations, 2 co-authors
+2026-02-24 16:00:36,703 - INFO -   - D. Bigatti: 296.0 citations, 1 co-authors
+2026-02-24 16:00:36,704 - INFO - High collaboration / Low citations (in-strength) (Outliers):
+2026-02-24 16:00:36,704 - INFO -   - J. Walcher: 15 co-authors, 0.0 citations
+2026-02-24 16:00:36,704 - INFO -   - C. Herdeiro: 10 co-authors, 0.0 citations
+2026-02-24 16:00:36,704 - INFO -   - S. Kumar: 10 co-authors, 0.0 citations
+2026-02-24 16:00:36,704 - INFO -   - C. Chan: 9 co-authors, 0.0 citations
+2026-02-24 16:00:36,704 - INFO -   - P. Kaste: 9 co-authors, 0.0 citations
+2026-02-24 16:00:37,309 - INFO - Saved figure to: results/degree_vs_instrength_social_vs_citation.pdf
+2026-02-24 16:00:37,309 - INFO - --- Weighted Strength Analysis (Social-Layer) ---
+2026-02-24 16:00:37,833 - INFO -   Fit exponent (beta): 1.1311
+2026-02-24 16:00:37,833 - INFO -   -> Super-linear scaling (beta > 1).
+2026-02-24 16:00:38,034 - INFO - Saved figure to: results/social_layer_strength_degree_correlation.pdf
+2026-02-24 16:00:38,034 - INFO - --- Weighted Strength Analysis (Citation-Layer) ---
+2026-02-24 16:00:38,072 - INFO -   Fit exponent (beta): 1.2317
+2026-02-24 16:00:38,072 - INFO -   -> Super-linear scaling (beta > 1).
+2026-02-24 16:00:38,390 - INFO - Saved figure to: results/citation_layer_strength_degree_correlation.pdf
+2026-02-24 16:00:38,391 - INFO - --- Heavy-Tail Distribution Analysis (Social-Layer) ---
+2026-02-24 16:00:38,438 - INFO -   Power Law Alpha: 2.9325
+2026-02-24 16:00:38,438 - INFO -   Xmin (Cutoff):   9.0
+2026-02-24 16:00:38,441 - INFO - [Physics Interpretation]
+2026-02-24 16:00:38,441 - INFO -   -> Verdict: The distribution is HEAVY-TAILED.
+2026-02-24 16:00:38,441 - INFO -   -> Physical Meaning: The network is dominated by 'Hubs' (Super-Connectors).
+2026-02-24 16:00:38,591 - INFO - Saved figure to: results/social_layer_degree_distribution_powerlaw.pdf
+2026-02-24 16:00:38,591 - INFO - --- Heavy-Tail Distribution Analysis (Citation-Layer) ---
+2026-02-24 16:00:38,722 - INFO -   Power Law Alpha: 2.2037
+2026-02-24 16:00:38,722 - INFO -   Xmin (Cutoff):   64.0
+2026-02-24 16:00:38,725 - INFO - [Physics Interpretation]
+2026-02-24 16:00:38,725 - INFO -   -> Verdict: The distribution is HEAVY-TAILED.
+2026-02-24 16:00:38,725 - INFO -   -> Physical Meaning: The network is dominated by 'Hubs' (Super-Connectors).
+2026-02-24 16:00:38,883 - INFO - Saved figure to: results/citation_layer_degree_distribution_powerlaw.pdf
+2026-02-24 16:00:38,883 - INFO - --- Physics Analysis: Social Layer ---
+2026-02-24 16:00:38,883 - INFO - --- Spectral Analysis (Laplacian & Entropy) ---
+2026-02-24 16:01:19,489 - INFO -   Average Path Length (L, weighted): 2.9489
+2026-02-24 16:01:19,490 - INFO -   Computing Normalized Laplacian Matrix...
+2026-02-24 16:01:19,502 - INFO -   Calculating Eigenvalues...
+2026-02-24 16:01:19,502 - INFO -   (Graph large: approximating spectral density with k=100)
+2026-02-24 16:01:20,181 - INFO - Spectral Metrics:
+2026-02-24 16:01:20,182 - INFO -   Algebraic Connectivity (lambda_2): 0.009580
+2026-02-24 16:01:20,182 - INFO -   Diffusion Time (tau): approx 104.39 steps
+2026-02-24 16:01:20,182 - INFO -   Von Neumann Entropy (S): 4.4959 (Max: 8.4463)
+2026-02-24 16:01:20,248 - INFO - Saved figure to: results/social_layer_spectral_density_entropy.pdf
+2026-02-24 16:01:20,248 - INFO - --- Robustness & Perturbation Analysis ---
+2026-02-24 16:01:20,248 - INFO -   Simulating removal of 20% nodes...
+2026-02-24 16:01:20,248 - INFO -   Optimization: Computing GCC every 18 removals.
+2026-02-24 16:01:20,504 - INFO - Saved figure to: results/social_layer_network_robustness.pdf
+2026-02-24 16:01:20,506 - INFO - --- Null Model Comparison ---
+2026-02-24 16:01:20,506 - INFO -   Randomizations: 10
+2026-02-24 16:01:20,566 - INFO -   Edge swaps per randomization: 68785
+2026-02-24 16:01:25,018 - INFO -   Real Clustering: 0.4370
+2026-02-24 16:01:25,018 - INFO -   Null Model <C>:  0.0042
+2026-02-24 16:01:25,018 - INFO -   Z-Score:         870.87
+2026-02-24 16:01:25,077 - INFO - Saved figure to: results/social_layer_configuration_model_clustering.pdf
+2026-02-24 16:01:25,077 - INFO - --- Physics Analysis: Citation Layer ---
+2026-02-24 16:01:25,077 - INFO - --- Spectral Analysis (Laplacian & Entropy) ---
+2026-02-24 16:01:25,363 - INFO -   (Converting directed graph to undirected for spectral analysis)
+2026-02-24 16:01:25,418 - WARNING - Graph disconnected. Using Giant Connected Component for spectral metrics.
+2026-02-24 16:07:43,852 - INFO -   Average Path Length (L, weighted): 0.8415
+2026-02-24 16:07:43,853 - INFO -   Computing Normalized Laplacian Matrix...
+2026-02-24 16:07:44,173 - INFO -   Calculating Eigenvalues...
+2026-02-24 16:07:44,173 - INFO -   (Graph large: approximating spectral density with k=100)
+2026-02-24 16:07:44,581 - INFO - Spectral Metrics:
+2026-02-24 16:07:44,581 - INFO -   Algebraic Connectivity (lambda_2): 0.060956
+2026-02-24 16:07:44,581 - INFO -   Diffusion Time (tau): approx 16.41 steps
+2026-02-24 16:07:44,581 - INFO -   Von Neumann Entropy (S): 4.5598 (Max: 8.4364)
+2026-02-24 16:07:44,644 - INFO - Saved figure to: results/citation_layer_spectral_density_entropy.pdf
+2026-02-24 16:07:44,645 - INFO - --- Robustness & Perturbation Analysis ---
+2026-02-24 16:07:44,645 - INFO -   (Converting directed graph to undirected for robustness analysis)
+2026-02-24 16:07:44,941 - INFO -   Simulating removal of 20% nodes...
+2026-02-24 16:07:44,941 - INFO -   Optimization: Computing GCC every 18 removals.
+2026-02-24 16:07:45,937 - INFO - Saved figure to: results/citation_layer_network_robustness.pdf
+2026-02-24 16:07:45,947 - INFO - --- Null Model Comparison ---
+2026-02-24 16:07:45,947 - INFO -   Randomizations: 10
+2026-02-24 16:07:45,947 - INFO -   (Using to_undirected() for configuration model comparison)
+2026-02-24 16:07:51,046 - INFO -   Edge swaps per randomization: 780655
+2026-02-24 16:10:29,085 - INFO -   Real Clustering: 0.5027
+2026-02-24 16:10:29,087 - INFO -   Null Model <C>:  0.2199
+2026-02-24 16:10:29,087 - INFO -   Z-Score:         142.86
+2026-02-24 16:10:29,148 - INFO - Saved figure to: results/citation_layer_configuration_model_clustering.pdf
+2026-02-24 16:10:29,157 - INFO - --- Cross-Layer Path Analysis ---
+2026-02-24 16:22:37,915 - INFO - Analyzed 188726 citation edges on shared node set.
+2026-02-24 16:22:37,917 - INFO - Average Co-authorship distance (hops): 3.2340
+2026-02-24 16:22:37,917 - INFO - Average Co-authorship distance (weighted): 1.3851
+2026-02-24 16:22:38,198 - INFO - Saved figure to: results/cross_layer_path_distribution_hops.pdf
+2026-02-24 16:22:38,487 - INFO - Saved figure to: results/cross_layer_path_distribution_weighted.pdf
+2026-02-24 16:22:38,493 - INFO - Cross-layer mean distance (hops): 3.2340
+2026-02-24 16:22:38,493 - INFO - Cross-layer mean distance (weighted): 1.3851
+2026-02-24 16:22:38,493 - INFO - --- Multiplex Correlation Analysis ---
+2026-02-24 16:27:02,986 - INFO -   Spearman Correlation: 0.5750 (p=0.0000e+00)
+2026-02-24 16:27:03,257 - INFO - Saved figure to: results/multiplex_pagerank_vs_betweenness.pdf
+2026-02-24 16:27:03,257 - INFO - [Phase 5] Detecting Communities & Topics (Jobs: 4)...
+2026-02-24 16:27:03,257 - INFO - Starting Robust Community Detection & Stability Analysis (Social-Layer)...
+2026-02-24 16:27:03,319 - INFO - Running Louvain 5 times (Parallel n_jobs=4)...
+2026-02-24 16:27:05,942 - INFO - Stability Results:
+2026-02-24 16:27:05,942 - INFO -   Average Modularity (Q): 0.7732
+2026-02-24 16:27:05,942 - INFO -   Stability (Avg ARI):    0.6191
+2026-02-24 16:27:05,942 - INFO -   Runs (n_iterations):    5
+2026-02-24 16:27:06,830 - INFO - --- Top Topics per Community (Social-Layer) ---
+2026-02-24 16:27:06,830 - INFO - Community 4 (Size: 386) - Top TF-IDF Keywords (Most Specific): throats, spencer, doubleton, quivers, millimeter, mssm, ext, enhancon
+2026-02-24 16:27:06,830 - INFO - Community 33 (Size: 242) - Top TF-IDF Keywords (Most Specific): anholonomic, csm, antibrackets, ng, alc, smilga, sec, wdvv
+2026-02-24 16:27:06,830 - INFO - Community 1 (Size: 213) - Top TF-IDF Keywords (Most Specific): bailey, ferroelectric, spinon, andrews, zelevinsky, rogers, ramanujan, forrester
+2026-02-24 16:27:06,831 - INFO - Saved topics table to: results/social_layer_top_communities_tfidf.csv
+2026-02-24 16:27:06,831 - INFO - Reported communities: top_k_report=3 (largest by size among communities with size>=5)
+2026-02-24 16:27:06,833 - INFO - Starting Robust Community Detection & Stability Analysis (Citation-Layer)...
+2026-02-24 16:27:07,119 - INFO - Running Louvain 5 times (Parallel n_jobs=4)...
+2026-02-24 16:27:11,658 - INFO - Stability Results:
+2026-02-24 16:27:11,659 - INFO -   Average Modularity (Q): 0.3580
+2026-02-24 16:27:11,659 - INFO -   Stability (Avg ARI):    0.6235
+2026-02-24 16:27:11,659 - INFO -   Runs (n_iterations):    5
+2026-02-24 16:27:12,538 - INFO - --- Top Topics per Community (Citation-Layer) ---
+2026-02-24 16:27:12,539 - INFO - Community 8 (Size: 1183) - Top TF-IDF Keywords (Most Specific): sdlcq, lf, ndim, erg, diakonov, chrmt, clouds, dancoff
+2026-02-24 16:27:12,539 - INFO - Community 1 (Size: 888) - Top TF-IDF Keywords (Most Specific): gamow, kets, bailey, galois, twining, superintegrable, parasupersymmetric, ferroelectric
+2026-02-24 16:27:12,539 - INFO - Community 3 (Size: 603) - Top TF-IDF Keywords (Most Specific): triaxial, stenzel, dualisations, hyperinstantons, triad, maeda, oxidise, repulsons
+2026-02-24 16:27:12,539 - INFO - Saved topics table to: results/citation_layer_top_communities_tfidf.csv
+2026-02-24 16:27:12,539 - INFO - Reported communities: top_k_report=3 (largest by size among communities with size>=5)
+2026-02-24 16:27:12,541 - INFO - Checking Community Size Distribution (Social-Layer)...
+2026-02-24 16:27:12,932 - INFO - Total Communities: 47
+2026-02-24 16:27:12,932 - INFO - Top 5 Largest (Major Fields): [474, 227, 216, 196, 191]
+2026-02-24 16:27:12,932 - INFO - Number of 'Tiny' Communities (Size < 5): 0
+2026-02-24 16:27:13,048 - INFO - Saved figure to: results/social_layer_community_size_distribution.pdf
+2026-02-24 16:27:13,048 - INFO - Checking Community Size Distribution (Citation-Layer)...
+2026-02-24 16:27:15,378 - INFO - Total Communities: 55
+2026-02-24 16:27:15,378 - INFO - Top 5 Largest (Major Fields): [1186, 789, 509, 482, 472]
+2026-02-24 16:27:15,378 - INFO - Number of 'Tiny' Communities (Size < 5): 45
+2026-02-24 16:27:15,490 - INFO - Saved figure to: results/citation_layer_community_size_distribution.pdf
+2026-02-24 16:27:15,490 - INFO - [Phase 6] Generating Interactive Map...
+2026-02-24 16:27:15,490 - INFO - --- Projecting Interactive Topological Map ---
+2026-02-24 16:27:15,491 - INFO -   Rendering subgraph with 500 nodes (Top Hubs)...
+2026-02-24 16:27:15,708 - INFO -   Success! Interactive map saved to: results/interactive_map.html
+2026-02-24 16:27:15,708 - INFO - Done! All results saved to: results
