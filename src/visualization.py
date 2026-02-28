@@ -58,12 +58,17 @@ def visualize_network(
     G: nx.Graph,
     title: str = "results/hep_interactive_map.html",
     partition: Dict[Any, int] = None,
+    degree_full: Dict[Any, int] = None,
 ) -> None:
     """
     Build an interactive PyVis map of the graph, with nodes colored by community.
 
     The community partition must be computed by the analysis layer (e.g. via
     get_community_partition) and passed in; this module does not run Louvain.
+
+    If degree_full is provided (e.g. from the full social graph), tooltips and
+    node sizes use full-network degree so the map shows global stats while
+    rendering a subgraph.
     """
     logger.info("--- Projecting Interactive Topological Map ---")
     
@@ -80,7 +85,9 @@ def visualize_network(
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
-    degrees = dict(G.degree())
+    degrees_subgraph = dict(G.degree())
+    # Use full-network degree for display when provided; else subgraph degree
+    degrees_display = degree_full if degree_full is not None else degrees_subgraph
 
     logger.info(f"  Rendering subgraph with {G.number_of_nodes()} nodes...")
 
@@ -88,7 +95,7 @@ def visualize_network(
 
     for node in G.nodes():
         comm_id = partition.get(node, 0)
-        degree = degrees[node]
+        degree = degrees_display.get(node, degrees_subgraph.get(node, 0))
         net.add_node(
             node,
             label=node,

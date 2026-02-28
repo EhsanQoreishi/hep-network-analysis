@@ -259,7 +259,12 @@ def main():
     top_nodes = sorted(degrees_social, key=degrees_social.get, reverse=True)[:500]
     G_map = G_social.subgraph(top_nodes).copy()
     partition = get_community_partition(G_map, random_state=0)
-    visualize_network(G_map, title=os.path.join(args.output, "interactive_map.html"), partition=partition)
+    visualize_network(
+        G_map,
+        title=os.path.join(args.output, "interactive_map.html"),
+        partition=partition,
+        degree_full=degrees_social,
+    )
 
     logger.info(f"Done! All results saved to: {args.output}")
 
