@@ -77,12 +77,18 @@ def analyze_power_law(G: nx.Graph, name: str = "Network") -> Dict[str, Any]:
             logger.info("  -> Verdict: Distribution decays rapidly (No clear hubs).")
 
         # Precompute PDF curves for visualization (no refit in plotting layer)
+        # powerlaw.Fit(..., discrete=True) returns .pdf(x) as an array (length=data);
+        # we need one scalar per x for plotting, so take .flat[0].
         x_plot = np.unique(degrees)
         _, counts = np.unique(degrees, return_counts=True)
         pdf_empirical = np.asarray(counts, dtype=float) / len(degrees)
         try:
-            pdf_power_law = np.array([fit.power_law.pdf(x) for x in x_plot])
-            pdf_lognormal = np.array([fit.lognormal.pdf(x) for x in x_plot])
+            pdf_power_law = np.array([
+                float(np.atleast_1d(fit.power_law.pdf(x)).flat[0]) for x in x_plot
+            ])
+            pdf_lognormal = np.array([
+                float(np.atleast_1d(fit.lognormal.pdf(x)).flat[0]) for x in x_plot
+            ])
         except Exception:
             pdf_power_law = np.full_like(x_plot, np.nan)
             pdf_lognormal = np.full_like(x_plot, np.nan)
