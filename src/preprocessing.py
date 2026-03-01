@@ -9,12 +9,14 @@ from src.constants import NON_AUTHOR_TERMS
 
 logger = logging.getLogger(__name__)
 
+# Pre-compiled regex patterns for fast abstract text cleaning
 CLEAN_LATEX_PATTERN: Pattern = re.compile(r"\\[a-zA-Z]+")
 CLEAN_VARS_PATTERN: Pattern = re.compile(r"\b[a-zA-Z]+[_\d][a-zA-Z\d]*\b")
 CLEAN_SINGLE_CHAR_PATTERN: Pattern = re.compile(r"\b[a-zA-Z]\b")
 CLEAN_NON_ALPHA_PATTERN: Pattern = re.compile(r"[^a-zA-Z\s\-]")
 CLEAN_WHITESPACE_PATTERN: Pattern = re.compile(r"\s+")
 
+# Pre-compiled regex patterns for author extraction
 AUTH_CAPTURE_PATTERN: Pattern = re.compile(
     r"Authors?:\s*(.+?)(?=\n(?:Comments|Journal-ref|Subj-class|\\)|$)",
     re.DOTALL | re.IGNORECASE,
@@ -26,7 +28,8 @@ NAME_TOKEN_SPLIT_PATTERN: Pattern = re.compile(r"\W+")
 
 def normalize_name(name: str) -> Optional[str]:
     """
-    Standardizes author names into 'F. Lastname' format with safety guards.
+    Standardizes author names to 'F. Lastname'. Handles surname prefixes
+    (e.g. van der Waals, 't Hooft) so the same author maps to one node.
     """
     name = name.replace(".", "").strip()
     if not name:
@@ -36,6 +39,7 @@ def normalize_name(name: str) -> Optional[str]:
     if len(parts) < 2:
         return None
 
+    # Step backward to group lowercase surname prefixes (e.g., 'van der', 'de')
     surname_start_index = len(parts) - 1
     while surname_start_index > 1 and parts[surname_start_index - 1].islower():
         surname_start_index -= 1
@@ -51,7 +55,8 @@ def normalize_name(name: str) -> Optional[str]:
 
 def clean_text(text: str) -> str:
     """
-    Preprocesses abstract text: removes LaTeX, math vars, and symbols.
+    Strips LaTeX, math variables, and single-char symbols from abstract text
+    for TF-IDF. Returns lowercased words only.
     """
     text = CLEAN_LATEX_PATTERN.sub(" ", text)
     text = CLEAN_VARS_PATTERN.sub(" ", text)
@@ -65,8 +70,7 @@ def _process_single_abstract(
     path: str, filename: str
 ) -> Optional[Tuple[str, List[str], str]]:
     """
-    Helper function to process a single abstract file.
-    Designed for parallel execution.
+    Process one .abs file; returns (paper_id, authors, cleaned_abstract) or None.
     """
     paper_id = filename.replace(".abs", "")
 
@@ -90,6 +94,7 @@ def _process_single_abstract(
                 if len(name) <= 2:
                     continue
 
+                # Filter out institutional noise (e.g., 'CERN', 'University of...')
                 name_tokens = set(NAME_TOKEN_SPLIT_PATTERN.split(name.lower()))
                 if not name_tokens.isdisjoint(NON_AUTHOR_TERMS):
                     continue
@@ -99,6 +104,7 @@ def _process_single_abstract(
                     authors_list.append(norm)
 
         cleaned_text = ""
+        # The actual abstract text in ArXiv .abs files is typically found after the last '\\'
         parts = [p.strip() for p in content.split("\\\\") if p.strip()]
         if len(parts) >= 2:
             abstract_candidate = parts[-1]
@@ -106,6 +112,7 @@ def _process_single_abstract(
             if len(cleaned) > 5:
                 cleaned_text = cleaned
 
+        # If a file is completely empty or corrupted, we drop it to keep our graph clean
         if not authors_list and not cleaned_text:
             return None
 
@@ -119,19 +126,8 @@ def parse_abstracts(
     root_dir: str, n_jobs: int = -1
 ) -> Tuple[Dict[str, List[str]], Dict[str, str], Dict[str, List[str]]]:
     """
-    Scans a directory for .abs files to extract metadata and abstract text.
-
-    Optimized: Uses parallel processing (joblib) to parse files concurrently.
-
-    Args:
-        root_dir (str): Directory containing .abs files.
-        n_jobs (int): Number of parallel jobs (-1 for all cores).
-
-    Returns:
-        Tuple containing:
-        - paper_to_authors: Dict[paper_id, List[author_names]]
-        - paper_to_text: Dict[paper_id, cleaned_abstract_text]
-        - author_to_papers: Dict[author_name, List[paper_ids]]
+    Scans root_dir for .abs files and extracts authors + abstract text in parallel (joblib).
+    Returns paper_to_authors, paper_to_text, author_to_papers.
     """
     logger.info(f"Scanning abstracts in {root_dir}...")
 

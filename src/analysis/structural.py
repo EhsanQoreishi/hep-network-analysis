@@ -1,8 +1,15 @@
+"""
+Structural (graph-theoretic) analysis for the HEP-Th networks.
+
+This module is intentionally kept free of any plotting code – it only computes
+metrics and, in a few cases, writes small CSV helper tables that downstream
+visualization utilities can consume.
+"""
+
 import logging
 import os
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from numba import jit
@@ -10,8 +17,10 @@ from scipy.stats import spearmanr
 
 logger = logging.getLogger(__name__)
 
+
 @jit(nopython=True)
 def _fast_avg_strength(k_values: np.ndarray, s_values: np.ndarray, unique_k: np.ndarray) -> np.ndarray:
+    """Average strength per unique degree (Numba for speed on large arrays)."""
     n_unique = len(unique_k)
     avg_s = np.zeros(n_unique, dtype=np.float64)
     for i in range(n_unique):
@@ -21,60 +30,121 @@ def _fast_avg_strength(k_values: np.ndarray, s_values: np.ndarray, unique_k: np.
         avg_s[i] = np.mean(subset)
     return avg_s
 
-def _sanitize_name(name: str) -> str:
-    return (
-        name.strip()
-        .lower()
-        .replace(" ", "_")
-        .replace("-", "_")
-        .replace("/", "_")
-        .replace("\\\\", "_")
-        .replace("(", "")
-        .replace(")", "")
-        .replace(":", "")
-        .replace(",", "")
-        .replace("__", "_")
-    )
-
-def _savefig(path: str) -> None:
-    base, ext = os.path.splitext(path)
-    if ext.lower() != ".pdf":
-        path = base + ".pdf"
-    plt.savefig(path, format="pdf", bbox_inches="tight")
-    logger.info(f"Saved figure to: {path}")
 
 def _density_undirected(N: int, E: int) -> float:
+    """Calculates the edge density for an undirected graph (like our co-authorship network)."""
     if N <= 1:
         return 0.0
     return float((2.0 * E) / (N * (N - 1)))
 
+
 def _density_directed(N: int, E: int) -> float:
+    """Calculates the edge density for a directed graph (like our citation network)."""
     if N <= 1:
         return 0.0
     return float(E / (N * (N - 1)))
 
+
+def _directed_avg_clustering(G: nx.DiGraph) -> float:
+    """
+    Average directed local clustering coefficient per the report (Section 3.1.2).
+
+    For each node i: C^dir_i = e^dir_i / (k^tot_i (k^tot_i - 1) - 2*k^↔_i),
+    where e^dir_i is the number of directed triangles through i, k^tot_i = in_degree + out_degree,
+    and k^↔_i is the number of reciprocal (bidirectional) edges incident to i.
+    """
+    if G.number_of_nodes() == 0:
+        return 0.0
+    total = 0.0
+    for i in G:
+        preds = set(G.predecessors(i))
+        succs = set(G.successors(i))
+        k_tot = len(preds) + len(succs)
+        k_bidir = sum(1 for j in G.successors(i) if G.has_edge(j, i))
+        if k_tot < 2:
+            continue
+        denom = k_tot * (k_tot - 1) - 2 * k_bidir
+        if denom <= 0:
+            continue
+        e_dir = 0
+        for u in preds:
+            for v in succs:
+                if u == v:
+                    continue
+                if G.has_edge(v, u) or G.has_edge(u, v):
+                    e_dir += 1
+        total += e_dir / denom
+    return total / G.number_of_nodes()
+
+
+def _directed_transitivity(G: nx.DiGraph) -> float:
+    """
+    Global directed transitivity: 3 * (number of directed triangles) / (number of open directed triads).
+
+    Open directed triad = path of length 2 (u→v→w); closed = directed triangle (cycle of 3).
+    """
+    num_triangles = 0
+    num_triples = 0
+    for i in G:
+        preds = list(G.predecessors(i))
+        succs = list(G.successors(i))
+        for u in preds:
+            for v in succs:
+                if u == v:
+                    continue
+                if G.has_edge(v, u) or G.has_edge(u, v):
+                    num_triangles += 1
+        in_d = len(preds)
+        out_d = len(succs)
+        k_bidir = sum(1 for j in succs if G.has_edge(j, i))
+        num_triples += in_d * out_d - k_bidir
+    num_triangles //= 3
+    if num_triples <= 0:
+        return 0.0
+    return (3.0 * num_triangles) / num_triples
+
+
 def get_global_metrics(G: nx.Graph) -> Dict[str, float]:
+    """
+    Grabs the big-picture metrics of the network. 
+    This gives us a baseline understanding of how dense the collaborations are 
+    and whether authors tend to form tight-knit triangles (clustering).
+    """
     logger.info("--- Global Graph Metrics ---")
     n = G.number_of_nodes()
     e = G.number_of_edges()
+    
     if G.is_directed():
         density = _density_directed(n, e)
+        transitivity = _directed_transitivity(G)
+        avg_clustering = _directed_avg_clustering(G)
     else:
         density = _density_undirected(n, e)
+        transitivity = float(nx.transitivity(G))
+        avg_clustering = float(nx.average_clustering(G))
+
     metrics = {
         "nodes": float(n),
         "edges": float(e),
         "density": float(density),
-        "transitivity": float(nx.transitivity(G)),
-        "avg_clustering": float(nx.average_clustering(G)),
+        "transitivity": float(transitivity),
+        "avg_clustering": float(avg_clustering),
     }
+    
     logger.info(f"Nodes: {int(metrics['nodes'])}, Edges: {int(metrics['edges'])}")
     logger.info(f"Edge Density: {metrics['density']:.6f}")
     logger.info(f"Global Clustering Coeff (Transitivity): {metrics['transitivity']:.4f}")
     logger.info(f"Average Clustering Coefficient: {metrics['avg_clustering']:.4f}")
+    
     return metrics
 
+
 def get_top_authors(G_co: nx.Graph, G_cit: nx.DiGraph) -> Dict[str, List[Tuple[str, float]]]:
+    """
+    Identifies the key players in our dataset across both layers.
+    Finds the most collaborative authors (degree), the most cited authors (in-strength),
+    and the "bridges" who connect different distinct research communities (betweenness).
+    """
     logger.info("--- Centrality Analysis ---")
 
     top_connected = sorted(G_co.degree(), key=lambda x: x[1], reverse=True)[:5]
@@ -90,6 +160,7 @@ def get_top_authors(G_co: nx.Graph, G_cit: nx.DiGraph) -> Dict[str, List[Tuple[s
     logger.info("Calculating Betweenness Centrality (this may take a moment)...")
     top_bridges: List[Tuple[str, float]] = []
     try:
+        # We sample up to 500 nodes to keep computation time reasonable.
         k_sample = min(500, max(1, G_co.number_of_nodes() - 1))
         betweenness = nx.betweenness_centrality(G_co, weight="distance", k=k_sample)
         top_bridges = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:5]
@@ -117,15 +188,38 @@ def get_top_authors(G_co: nx.Graph, G_cit: nx.DiGraph) -> Dict[str, List[Tuple[s
         "closeness": [(a, float(v)) for a, v in top_closeness],
     }
 
-def export_centrality_tables(G_co: nx.Graph, output_dir: str = "results", top_n: int = 10) -> Dict[str, str]:
-    os.makedirs(output_dir, exist_ok=True)
 
+def compute_centrality_data(G_co: nx.Graph, top_n: int = 10) -> Dict[str, Any]:
+    """
+    Pure centrality computation for the social layer.
+
+    This function performs no file I/O and is therefore easy to test in
+    isolation. It returns the top-N betweenness and closeness pairs which can
+    then be written to disk or plotted by downstream utilities.
+    """
     k_sample = min(500, max(1, G_co.number_of_nodes() - 1))
     betweenness = nx.betweenness_centrality(G_co, weight="distance", k=k_sample)
     closeness = nx.closeness_centrality(G_co, distance="distance")
 
     top_bet = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:top_n]
     top_clo = sorted(closeness.items(), key=lambda x: x[1], reverse=True)[:top_n]
+
+    return {
+        "top_betweenness_data": top_bet,
+        "top_closeness_data": top_clo,
+    }
+
+
+def export_centrality_tables(G_co: nx.Graph, output_dir: str = "results", top_n: int = 10) -> Dict[str, Any]:
+    """
+    Computes betweenness and closeness centralities, saves the top N to CSV files,
+    and returns the raw data so our visualization layer can plot them later.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    centrality_data = compute_centrality_data(G_co, top_n=top_n)
+    top_bet = centrality_data["top_betweenness_data"]
+    top_clo = centrality_data["top_closeness_data"]
 
     bet_path = os.path.join(output_dir, "top_betweenness_social.csv")
     clo_path = os.path.join(output_dir, "top_closeness_social.csv")
@@ -143,52 +237,20 @@ def export_centrality_tables(G_co: nx.Graph, output_dir: str = "results", top_n:
     logger.info(f"Saved table to: {bet_path}")
     logger.info(f"Saved table to: {clo_path}")
 
-    return {"betweenness_csv": bet_path, "closeness_csv": clo_path}
+    return {
+        "betweenness_csv": bet_path,
+        "closeness_csv": clo_path,
+        "top_betweenness_data": top_bet,
+        "top_closeness_data": top_clo,
+    }
 
-def plot_top_centralities(
-    G_co: nx.Graph,
-    output_dir: str = "results",
-    top_n: int = 10,
-    filename: str = "centrality_betweenness_closeness_social.pdf",
-) -> str:
-    os.makedirs(output_dir, exist_ok=True)
 
-    k_sample = min(500, max(1, G_co.number_of_nodes() - 1))
-    betweenness = nx.betweenness_centrality(G_co, weight="distance", k=k_sample)
-    closeness = nx.closeness_centrality(G_co, distance="distance")
-
-    top_bet = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:top_n]
-    top_clo = sorted(closeness.items(), key=lambda x: x[1], reverse=True)[:top_n]
-
-    bet_names = [a for a, _ in top_bet][::-1]
-    bet_vals = [v for _, v in top_bet][::-1]
-    clo_names = [a for a, _ in top_clo][::-1]
-    clo_vals = [v for _, v in top_clo][::-1]
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-    axes[0].barh(bet_names, bet_vals, color="#4C72B0", edgecolor="black", linewidth=0.5)
-    axes[0].set_title(f"Top {top_n} Betweenness (Social Layer)")
-    axes[0].set_xlabel("Betweenness")
-    axes[0].grid(True, axis="x", alpha=0.25)
-
-    axes[1].barh(clo_names, clo_vals, color="#55A868", edgecolor="black", linewidth=0.5)
-    axes[1].set_title(f"Top {top_n} Closeness (Social Layer)")
-    axes[1].set_xlabel("Closeness")
-    axes[1].grid(True, axis="x", alpha=0.25)
-
-    plt.tight_layout()
-
-    save_path = os.path.join(output_dir, filename)
-    _savefig(save_path)
-    plt.close(fig)
-    return os.path.splitext(save_path)[0] + ".pdf"
-
-def analyze_layer_shortest_paths(
-    G_cit: nx.DiGraph,
-    G_co: nx.Graph,
-    output_dir: str = "results",
-    filename: str = "cross_layer_path_distribution.pdf",
-) -> Dict[str, float]:
+def analyze_layer_shortest_paths(G_cit: nx.DiGraph, G_co: nx.Graph) -> Dict[str, Any]:
+    """
+    Investigates how the citation layer maps onto the social layer. 
+    If author A cites author B, how many steps away are they in the co-authorship network?
+    Returns the average distances along with the raw distributions for plotting.
+    """
     logger.info("--- Cross-Layer Path Analysis ---")
 
     social_nodes = set(G_co.nodes())
@@ -219,57 +281,28 @@ def analyze_layer_shortest_paths(
     logger.info(f"Average Co-authorship distance (hops): {avg_hops:.4f}")
     logger.info(f"Average Co-authorship distance (weighted): {avg_weighted:.4f}")
 
-    os.makedirs(output_dir, exist_ok=True)
+    return {
+        "avg_hops": float(avg_hops),
+        "avg_weighted": float(avg_weighted),
+        "distances_hops": distances_hops,
+        "distances_weighted": distances_weighted,
+    }
 
-    plt.figure(figsize=(9, 5))
-    if distances_hops:
-        min_d = int(min(distances_hops))
-        max_d = int(max(distances_hops))
-        bins = np.arange(min_d - 0.5, max_d + 1.5, 1.0)
-        plt.hist(distances_hops, bins=bins, alpha=0.75, color="skyblue", edgecolor="black")
-        plt.xticks(list(range(min_d, max_d + 1)))
-    else:
-        plt.hist([], bins=10)
-    plt.title("Cross-layer Path Distribution (Citation pairs in Social layer)")
-    plt.xlabel("Shortest path length d (co-authorship hops)")
-    plt.ylabel("Frequency")
-    if distances_hops:
-        plt.axvline(avg_hops, color="red", linestyle="dashed", label=f"Mean: {avg_hops:.4f}")
-        plt.legend()
-    save_path = os.path.join(output_dir, "cross_layer_path_distribution_hops.pdf")
-    _savefig(save_path)
-    plt.close()
 
-    plt.figure(figsize=(9, 5))
-    if distances_weighted:
-        plt.hist(distances_weighted, bins=50, alpha=0.75, color="skyblue", edgecolor="black")
-    else:
-        plt.hist([], bins=10)
-    plt.title("Cross-layer Path Distribution (Citation pairs in Social layer)")
-    plt.xlabel("Shortest path length d (weighted social distance)")
-    plt.ylabel("Frequency")
-    if distances_weighted:
-        plt.axvline(avg_weighted, color="red", linestyle="dashed", label=f"Mean: {avg_weighted:.4f}")
-        plt.legend()
-    save_path = os.path.join(output_dir, "cross_layer_path_distribution_weighted.pdf")
-    _savefig(save_path)
-    plt.close()
-
-    return {"avg_hops": float(avg_hops), "avg_weighted": float(avg_weighted)}
-
-def analyze_strength_distribution(G: nx.Graph, name: str = "Network", output_dir: str = "results") -> Dict[str, float]:
+def analyze_strength_distribution(G: nx.Graph, name: str = "Network") -> Dict[str, Any]:
+    """
+    Analyzes the correlation between an author's degree (number of connections) 
+    and their strength (total weight of those connections).
+    Returns the fitting parameters (beta, intercept) and the raw arrays for visualization.
+    """
     logger.info(f"--- Weighted Strength Analysis ({name}) ---")
 
     if G.is_directed():
         degrees = dict(G.in_degree())
         strengths = dict(G.in_degree(weight="weight"))
-        degree_label = "In-Degree k"
-        strength_label = "In-Strength s"
     else:
         degrees = dict(G.degree())
         strengths = dict(G.degree(weight="weight"))
-        degree_label = "Degree k"
-        strength_label = "Strength s"
 
     nodes = list(G.nodes())
     k_values = np.array([degrees.get(n, 0) for n in nodes], dtype=np.float64)
@@ -281,7 +314,7 @@ def analyze_strength_distribution(G: nx.Graph, name: str = "Network", output_dir
 
     if len(k_values) == 0:
         logger.warning("No positive degree/strength values found.")
-        return {"beta": 0.0, "intercept": 0.0}
+        return {"beta": 0.0, "intercept": 0.0, "k_values": [], "s_values": []}
 
     k_unique = np.unique(k_values)
     s_avg_k = _fast_avg_strength(k_values, s_values, k_unique)
@@ -298,34 +331,28 @@ def analyze_strength_distribution(G: nx.Graph, name: str = "Network", output_dir
     if beta > 1.0:
         logger.info("  -> Super-linear scaling (beta > 1).")
 
-    os.makedirs(output_dir, exist_ok=True)
-    plt.figure(figsize=(8.5, 6))
-    plt.scatter(k_values, s_values, alpha=0.12, color="gray", s=10, label="Nodes")
-    plt.loglog(k_unique, s_avg_k, "o", color="#1f77b4", label=r"Average $\langle s(k)\rangle$")
+    return {
+        "beta": float(beta),
+        "intercept": float(intercept),
+        "k_values": k_values,
+        "s_values": s_values,
+        "k_unique": k_unique,
+        "s_avg_k": s_avg_k,
+    }
 
-    fit_y = (10 ** intercept) * (k_unique ** beta)
-    plt.loglog(k_unique, fit_y, "--", color="red", linewidth=2, label=fr"Fit: $\beta={beta:.2f}$")
 
-    plt.title(f"Strength vs Degree ({name})")
-    plt.xlabel(degree_label)
-    plt.ylabel(strength_label)
-    plt.legend()
-    plt.grid(True, which="both", alpha=0.25)
-
-    safe_name = _sanitize_name(name)
-    save_path = os.path.join(output_dir, f"{safe_name}_strength_degree_correlation.pdf")
-    _savefig(save_path)
-    plt.close()
-
-    return {"beta": float(beta), "intercept": float(intercept)}
-
-def analyze_multiplex_correlation(G_co: nx.Graph, G_cit: nx.DiGraph, output_dir: str = "results") -> Dict[str, float]:
+def analyze_multiplex_correlation(G_co: nx.Graph, G_cit: nx.DiGraph) -> Dict[str, Any]:
+    """
+    Compares how influential an author is in the citation network (PageRank)
+    versus their bridging capability in the social network (Betweenness).
+    Returns the Spearman correlation and the raw arrays for generating hexbin plots.
+    """
     logger.info("--- Multiplex Correlation Analysis ---")
 
     common_authors = list(set(G_co.nodes()).intersection(set(G_cit.nodes())))
     if len(common_authors) < 10:
         logger.warning("Not enough common authors for correlation.")
-        return {"correlation": 0.0, "p_value": 1.0}
+        return {"correlation": 0.0, "p_value": 1.0, "x_plot": [], "y_plot": []}
 
     pagerank = nx.pagerank(G_cit, weight="weight")
     k_sample = min(len(common_authors), 500)
@@ -341,42 +368,28 @@ def analyze_multiplex_correlation(G_co: nx.Graph, G_cit: nx.DiGraph, output_dir:
     logger.info(f"  Spearman Correlation: {corr:.4f} (p={p_value:.4e})")
 
     mask = (x_data > 0) & (y_data > 0)
-    x_plot = x_data[mask]
-    y_plot = y_data[mask]
+    
+    return {
+        "correlation": corr, 
+        "p_value": p_value,
+        "x_plot": x_data[mask],
+        "y_plot": y_data[mask],
+        "x_raw": x_data,
+        "y_raw": y_data
+    }
 
-    os.makedirs(output_dir, exist_ok=True)
-    plt.figure(figsize=(10, 7))
-    if len(x_plot) > 0:
-        hb = plt.hexbin(
-            x_plot,
-            y_plot,
-            gridsize=30,
-            cmap="inferno",
-            bins="log",
-            xscale="log",
-            yscale="log",
-        )
-        plt.colorbar(hb, label="log10(Count)")
-    else:
-        plt.scatter(x_data, y_data, alpha=0.5)
 
-    plt.xlabel("Citation influence (PageRank)")
-    plt.ylabel("Social brokerage (Betweenness)")
-    plt.title(f"Multiplex Correlation (Spearman r={corr:.2f})")
-    plt.grid(True, alpha=0.3)
-
-    save_path = os.path.join(output_dir, "multiplex_pagerank_vs_betweenness.pdf")
-    _savefig(save_path)
-    plt.close()
-
-    return {"correlation": corr, "p_value": p_value}
-
-def analyze_degree_correlation(G_co: nx.Graph, G_cit: nx.DiGraph, output_dir: str = "results") -> Dict[str, float]:
+def analyze_degree_correlation(G_co: nx.Graph, G_cit: nx.DiGraph) -> Dict[str, Any]:
+    """
+    Analyzes the relationship between an author's number of collaborators (degree)
+    and their total incoming citations (in-strength). Identifies notable outliers.
+    Returns the Spearman correlation and the raw arrays for generating hexbin plots.
+    """
     logger.info("--- Degree vs In-Strength Correlation ---")
 
     common_authors = list(set(G_co.nodes()).intersection(set(G_cit.nodes())))
     if len(common_authors) < 10:
-        return {"correlation": 0.0, "p_value": 1.0}
+        return {"correlation": 0.0, "p_value": 1.0, "x_plot": [], "y_plot": []}
 
     co_degrees = dict(G_co.degree())
     cit_in_strength = dict(G_cit.in_degree(weight="weight"))
@@ -396,9 +409,7 @@ def analyze_degree_correlation(G_co: nx.Graph, G_cit: nx.DiGraph, output_dir: st
     )[:5]
     logger.info("High citations (in-strength) / Low collaboration (Outliers):")
     for a in outliers_cit:
-        logger.info(
-            f"  - {a}: {cit_in_strength.get(a, 0.0):.1f} citations, {co_degrees.get(a, 0)} co-authors"
-        )
+        logger.info(f"  - {a}: {cit_in_strength.get(a, 0.0):.1f} citations, {co_degrees.get(a, 0)} co-authors")
 
     outliers_co = sorted(
         [a for a in common_authors],
@@ -407,38 +418,15 @@ def analyze_degree_correlation(G_co: nx.Graph, G_cit: nx.DiGraph, output_dir: st
     )[:5]
     logger.info("High collaboration / Low citations (in-strength) (Outliers):")
     for a in outliers_co:
-        logger.info(
-            f"  - {a}: {co_degrees.get(a, 0)} co-authors, {cit_in_strength.get(a, 0.0):.1f} citations"
-        )
-
-    os.makedirs(output_dir, exist_ok=True)
-    plt.figure(figsize=(10, 7))
+        logger.info(f"  - {a}: {co_degrees.get(a, 0)} co-authors, {cit_in_strength.get(a, 0.0):.1f} citations")
 
     mask = (x_data > 0) & (y_data > 0)
-    x_plot = x_data[mask]
-    y_plot = y_data[mask]
 
-    if len(x_plot) > 0:
-        hb = plt.hexbin(
-            x_plot,
-            y_plot,
-            gridsize=30,
-            cmap="viridis",
-            bins="log",
-            xscale="log",
-            yscale="log",
-        )
-        plt.colorbar(hb, label="log10(Count)")
-    else:
-        plt.scatter(x_data, y_data, alpha=0.5)
-
-    plt.xlabel("Co-authorship degree")
-    plt.ylabel("Citation in-strength (total citations received)")
-    plt.title(f"Degree vs In-Strength (Spearman r={corr:.2f})")
-    plt.grid(True, alpha=0.3)
-
-    save_path = os.path.join(output_dir, "degree_vs_instrength_social_vs_citation.pdf")
-    _savefig(save_path)
-    plt.close()
-
-    return {"correlation": corr, "p_value": p_value}
+    return {
+        "correlation": corr, 
+        "p_value": p_value,
+        "x_plot": x_data[mask],
+        "y_plot": y_data[mask],
+        "x_raw": x_data,
+        "y_raw": y_data
+    }
