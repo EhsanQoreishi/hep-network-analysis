@@ -291,33 +291,58 @@ def plot_power_law(data: Dict[str, Any], name: str = "Network", output_dir: str 
     """
     Visualizes the heavy-tailed degree distribution and its power-law fit.
 
-    Expects precomputed PDF curves from analyze_power_law (pdf_x, pdf_empirical,
-    pdf_power_law, pdf_lognormal); no fitting is done in this module.
+    Uses the powerlaw library's plot_pdf (same as the old version) when
+    analyze_power_law provides a "fit" object; otherwise falls back to
+    precomputed PDF curves (pdf_x, pdf_empirical, etc.).
     """
+    fit = data.get("fit")
+    if fit is not None:
+        # Same as old version: use powerlaw's built-in plotting
+        os.makedirs(output_dir, exist_ok=True)
+        try:
+            plt.figure(figsize=(8, 6))
+            fit.plot_pdf(color="b", linear_bins=True, label="Empirical Data")
+            fit.power_law.plot_pdf(color="r", linestyle="--", label="Power Law Fit")
+            fit.lognormal.plot_pdf(color="g", linestyle="-.", label="Log-Normal Fit")
+            plt.title(f"Degree Distribution ({name})")
+            plt.xlabel(data.get("x_label", "Degree (k)"))
+            plt.ylabel("P(k)")
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            _savefig(os.path.join(output_dir, f"{_sanitize_name(name)}_degree_distribution_powerlaw.pdf"))
+            plt.close()
+        except Exception as e:
+            logger.error(f"Failed to plot power law for {name}: {e}")
+        return
+
+    # Fallback: precomputed arrays (e.g. tests or when fit not provided)
     x_plot = data.get("pdf_x")
     if x_plot is None or len(x_plot) < 2:
         return
 
     os.makedirs(output_dir, exist_ok=True)
-
     pdf_empirical = data.get("pdf_empirical", np.array([]))
     pdf_power_law = data.get("pdf_power_law", np.array([]))
     pdf_lognormal = data.get("pdf_lognormal", np.array([]))
+    x_pl = data.get("pdf_power_law_x")
+    x_ln = data.get("pdf_lognormal_x")
 
     try:
         plt.figure(figsize=(8, 6))
         plt.loglog(x_plot, pdf_empirical, "b", label="Empirical Data")
-        if len(pdf_power_law) == len(x_plot) and np.any(np.isfinite(pdf_power_law)):
-            plt.loglog(x_plot, pdf_power_law, "r--", linewidth=2, label="Power Law Fit")
-        if len(pdf_lognormal) == len(x_plot) and np.any(np.isfinite(pdf_lognormal)):
-            plt.loglog(x_plot, pdf_lognormal, "g-.", linewidth=1.5, label="Log-Normal Fit")
-
+        if len(pdf_power_law) > 0 and np.any(np.isfinite(pdf_power_law)):
+            x_pl_use = x_pl if x_pl is not None and len(x_pl) == len(pdf_power_law) else (x_plot if len(x_plot) == len(pdf_power_law) else None)
+            if x_pl_use is not None:
+                plt.loglog(x_pl_use, pdf_power_law, "r--", linewidth=2, label="Power Law Fit")
+        if len(pdf_lognormal) > 0 and np.any(np.isfinite(pdf_lognormal)):
+            x_ln_use = x_ln if x_ln is not None and len(x_ln) == len(pdf_lognormal) else (x_plot if len(x_plot) == len(pdf_lognormal) else None)
+            if x_ln_use is not None:
+                plt.loglog(x_ln_use, pdf_lognormal, "g-.", linewidth=1.5, label="Log-Normal Fit")
         plt.title(f"Degree Distribution ({name})")
         plt.xlabel(data.get("x_label", "Degree (k)"))
         plt.ylabel("P(k)")
         plt.legend()
         plt.grid(True, alpha=0.3)
-
         _savefig(os.path.join(output_dir, f"{_sanitize_name(name)}_degree_distribution_powerlaw.pdf"))
         plt.close()
     except Exception as e:
