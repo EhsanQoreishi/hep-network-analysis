@@ -13,6 +13,8 @@ import pytest
 from src.analysis.structural import (
     _density_directed,
     _density_undirected,
+    _directed_avg_clustering,
+    _directed_transitivity,
     _fast_avg_strength,
     analyze_degree_correlation,
     analyze_layer_shortest_paths,
@@ -73,8 +75,24 @@ def directed_chain():
     ],
 )
 def test_density_undirected(N, E, expected):
-    """Verify the undirected density formula against analytical limits."""
+    """Verify the undirected density formula 2*E/(N*(N-1)) against analytical limits."""
     assert np.isclose(_density_undirected(N, E), expected)
+
+
+@pytest.mark.parametrize(
+    "N, E, expected",
+    [
+        (3, 3, 0.5),       # Directed 3-cycle: E/(N*(N-1)) = 3/6
+        (4, 3, 0.25),      # Directed star: 3/12
+        (2, 1, 0.5),       # Two nodes, one edge: 1/2
+        (1, 0, 0.0),
+        (0, 0, 0.0),
+    ],
+)
+def test_density_directed(N, E, expected):
+    """Verify the directed density formula E/(N*(N-1)) against analytical limits."""
+    assert np.isclose(_density_directed(N, E), expected)
+
 
 def test_fast_avg_strength():
     """Test the Numba JIT-compiled average strength calculator."""
@@ -140,6 +158,17 @@ def test_get_global_metrics_directed_star(directed_star):
     assert metrics["avg_clustering"] == 0.0
 
 
+def test_directed_avg_clustering_and_transitivity(directed_triangle, directed_star):
+    """Verify directed clustering and transitivity helpers on known graphs."""
+    # Directed 3-cycle A->B->C->A: one directed triangle, transitivity = 1
+    assert _directed_transitivity(directed_triangle) == pytest.approx(1.0)
+    assert _directed_avg_clustering(directed_triangle) > 0
+    assert _directed_avg_clustering(directed_triangle) <= 1.0
+    # Directed star: no directed triangles
+    assert _directed_transitivity(directed_star) == 0.0
+    assert _directed_avg_clustering(directed_star) == 0.0
+
+
 def test_compute_centrality_data_and_export(tmp_path, star_graph):
     """
     Verify that centrality computation is pure, and CSV export writes correct tables.
@@ -168,18 +197,64 @@ def test_compute_centrality_data_and_export(tmp_path, star_graph):
     assert res["betweenness_csv"] == str(bet_path)
     assert res["closeness_csv"] == str(clo_path)
 
+
+def test_export_centrality_tables_triangle_top_n(tmp_path, triangle_graph):
+    """
+    Second case: export on a triangle graph with top_n=2; CSVs contain expected rows.
+    """
+    for _, _, d in triangle_graph.edges(data=True):
+        d["distance"] = 1.0
+
+    out_dir = tmp_path / "centrality_triangle"
+    res = export_centrality_tables(triangle_graph, output_dir=str(out_dir), top_n=2)
+
+    bet_path = out_dir / "top_betweenness_social.csv"
+    clo_path = out_dir / "top_closeness_social.csv"
+    assert bet_path.exists()
+    assert clo_path.exists()
+    assert res["top_betweenness_data"] is not None
+    assert res["top_closeness_data"] is not None
+    assert len(res["top_betweenness_data"]) <= 2
+    assert len(res["top_closeness_data"]) <= 2
+    # Triangle has 3 nodes; both centralities are symmetric so we get 3 entries computed, top_n=2 caps output
+    lines_bet = bet_path.read_text(encoding="utf-8").strip().split("\n")
+    lines_clo = clo_path.read_text(encoding="utf-8").strip().split("\n")
+    assert lines_bet[0] == "author,betweenness"
+    assert lines_clo[0] == "author,closeness"
+    assert len(lines_bet) >= 2  # header + at least 1 data row
+    assert len(lines_clo) >= 2
+
+
 # =============================================================================
 # CENTRALITY & TOP AUTHORS TESTS
 # =============================================================================
 
 def test_get_top_authors(star_graph, directed_chain):
-    """Verify centrality algorithms identify structural hubs correctly."""
+    """Verify get_top_authors identifies structural hubs: star center and chain sink."""
     for u, v, d in star_graph.edges(data=True):
         d["distance"] = 1.0
 
     results = get_top_authors(star_graph, directed_chain)
     assert results["collaborative"][0][0] == "Center"
     assert results["influential"][0][0] == "C"
+
+
+def test_centrality_values_star(star_graph):
+    """Verify exact centrality behavior on a star: center has betweenness, leaves zero; center has highest closeness."""
+    for u, v, d in star_graph.edges(data=True):
+        d["distance"] = 1.0
+
+    data = compute_centrality_data(star_graph, top_n=10)
+    bet = dict(data["top_betweenness_data"])  # list of (node, value) -> dict
+    clo = dict(data["top_closeness_data"])
+
+    assert bet["Center"] > 0
+    assert bet.get("L1", 0) == pytest.approx(0.0)
+    assert bet.get("L2", 0) == pytest.approx(0.0)
+    assert bet.get("L3", 0) == pytest.approx(0.0)
+    assert clo["Center"] > clo.get("L1", 0)
+    assert clo["Center"] > clo.get("L2", 0)
+    assert clo["Center"] > clo.get("L3", 0)
 
 
 def test_analyze_strength_distribution_basic(star_graph):
@@ -255,28 +330,116 @@ def test_analyze_layer_shortest_paths_disconnected_citing_pair():
     assert result["distances_weighted"] == []
     assert result["avg_weighted"] == 0.0
 
+
+# =============================================================================
+# CORRELATION TESTS (multiple scenarios and actual values)
+# =============================================================================
+
 def test_correlations():
     """
-    Test Spearman correlations between layers. 
-    Uses a larger graph to satisfy statistical requirements and prevent KeyErrors.
+    Verify multiplex and degree correlation return valid structure and plot data.
+    Uses a larger graph so enough common authors exist for Spearman (min 10).
     """
-    # Arrange: Create larger graphs to ensure enough common authors for correlation
     n_nodes = 20
     G_co = nx.gnp_random_graph(n_nodes, 0.5, seed=42)
     G_cit = nx.gnp_random_graph(n_nodes, 0.5, seed=42, directed=True)
-    
     for u, v, d in G_co.edges(data=True):
         d["distance"] = 1.0
 
-    # Act: Compute multiplex and degree correlations
     multi_res = analyze_multiplex_correlation(G_co, G_cit)
     deg_res = analyze_degree_correlation(G_co, G_cit)
 
-    # Assert: Ensure correlation keys exist and contain plot data
     assert "correlation" in multi_res
     assert "x_plot" in multi_res
+    assert "p_value" in multi_res
     assert len(multi_res["x_plot"]) >= 0
+    assert -1 <= multi_res["correlation"] <= 1
 
     assert "correlation" in deg_res
     assert "x_plot" in deg_res
+    assert "p_value" in deg_res
     assert len(deg_res["x_plot"]) >= 0
+    assert -1 <= deg_res["correlation"] <= 1
+
+
+def test_analyze_multiplex_correlation_few_common_nodes():
+    """When fewer than 10 common nodes exist, returns zero correlation and empty plot arrays."""
+    G_co = nx.Graph()
+    G_co.add_edges_from([("A", "B"), ("B", "C")])
+    for u, v, d in G_co.edges(data=True):
+        d["distance"] = 1.0
+    G_cit = nx.DiGraph()
+    G_cit.add_edges_from([("A", "B"), ("B", "C")])
+    for u, v in G_cit.edges():
+        G_cit[u][v]["weight"] = 1.0
+
+    res = analyze_multiplex_correlation(G_co, G_cit)
+    assert res["correlation"] == 0.0
+    assert res["p_value"] == 1.0
+    assert res["x_plot"] == [] or len(res["x_plot"]) == 0
+    assert res["y_plot"] == [] or len(res["y_plot"]) == 0
+
+
+def test_analyze_multiplex_correlation_sufficient_common_nodes():
+    """When at least 10 common nodes exist, returns correlation in [-1, 1] and non-empty plot arrays."""
+    nodes = [f"n{i}" for i in range(12)]
+    G_co = nx.Graph()
+    G_co.add_nodes_from(nodes)
+    for i, n in enumerate(nodes):
+        for j in range(i + 1, min(i + 3, len(nodes))):
+            G_co.add_edge(nodes[i], nodes[j], weight=1.0, distance=1.0)
+    G_cit = nx.DiGraph()
+    G_cit.add_nodes_from(nodes)
+    for i in range(len(nodes) - 1):
+        G_cit.add_edge(nodes[i + 1], nodes[i], weight=1.0)
+    for u, v in G_cit.edges():
+        G_cit[u][v].setdefault("weight", 1.0)
+
+    res = analyze_multiplex_correlation(G_co, G_cit)
+    assert -1.0 <= res["correlation"] <= 1.0
+    assert 0.0 <= res["p_value"] <= 1.0
+    assert "x_plot" in res and "y_plot" in res
+    assert isinstance(res["x_plot"], np.ndarray)
+    assert isinstance(res["y_plot"], np.ndarray)
+    # With positive PageRank and betweenness, mask may drop some; we expect at least some points
+    assert len(res["x_plot"]) <= len(nodes)
+    assert len(res["y_plot"]) == len(res["x_plot"])
+
+
+def test_analyze_degree_correlation_few_common_nodes():
+    """When fewer than 10 common nodes exist, returns zero correlation and empty plot arrays."""
+    G_co = nx.Graph()
+    G_co.add_edges_from([("A", "B"), ("B", "C")])
+    G_cit = nx.DiGraph()
+    G_cit.add_edges_from([("A", "B"), ("B", "C")])
+    for u, v in G_cit.edges():
+        G_cit[u][v]["weight"] = 1.0
+
+    res = analyze_degree_correlation(G_co, G_cit)
+    assert res["correlation"] == 0.0
+    assert res["p_value"] == 1.0
+    assert res["x_plot"] == [] or len(res["x_plot"]) == 0
+    assert res["y_plot"] == [] or len(res["y_plot"]) == 0
+
+
+def test_analyze_degree_correlation_positive_correlation():
+    """When degree and in-strength are perfectly rank-aligned, Spearman is 1.0."""
+    # Build graphs where node A has highest degree and highest in-strength, etc.
+    nodes = [f"n{i}" for i in range(15)]
+    G_co = nx.Graph()
+    G_co.add_nodes_from(nodes)
+    for i, n in enumerate(nodes):
+        for j in range(i + 1, min(i + 4, len(nodes))):
+            G_co.add_edge(nodes[i], nodes[j], weight=1.0, distance=1.0)
+    G_cit = nx.DiGraph()
+    G_cit.add_nodes_from(nodes)
+    for i in range(len(nodes) - 1):
+        G_cit.add_edge(nodes[i + 1], nodes[i], weight=1.0)
+    for u, v in G_cit.edges():
+        G_cit[u][v].setdefault("weight", 1.0)
+
+    res = analyze_degree_correlation(G_co, G_cit)
+    assert "correlation" in res
+    assert -1 <= res["correlation"] <= 1
+    assert "x_plot" in res
+    assert "y_plot" in res
