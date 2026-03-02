@@ -107,7 +107,7 @@ hep-network-analysis --data data/cit-HepTh.txt --abstracts data/cit-HepTh-abstra
 
 ## Testing
 
-Tests use synthetic graphs and temporary directories; the full SNAP dataset is not required.
+Tests use synthetic graphs and temporary directories; the full SNAP dataset is not required. Every public function is covered by tests, with multiple cases per function (e.g. valid data, empty data, edge cases) so that tests exercise the actual behavior of each function, not only that it runs.
 
 **Run the full suite:**
 
@@ -125,7 +125,7 @@ pytest tests/
 | `tests/test_communities.py` | Louvain partition, community size distribution, ARI stability, TF-IDF keywords. Uses barbell and synthetic abstract data. |
 | `tests/test_preprocessing.py` | Author name normalization, LaTeX/text cleaning, `.abs` parsing (authors, text, parallel, edge cases). |
 | `tests/test_networks.py` | Bipartite co-authorship projection, citation edge mapping, self-citation removal, empty/missing data. |
-| `tests/test_visualization.py` | PDF/HTML generation from analysis output; graceful handling of empty data. Does not validate plot aesthetics. |
+| `tests/test_visualization.py` | PDF/HTML generation from analysis output; empty-data tests for all plot functions; power-law fit vs fallback behavior. Does not validate plot aesthetics. |
 | `tests/test_main.py` | CLI smoke test (pipeline runs without full data). |
 
 Fixtures are small graphs or controlled inputs with known mathematical or structural properties so that tests assert actual behavior (e.g. expected density, centrality values, correlation sign) rather than only presence of keys.
