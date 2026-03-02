@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from src.analysis.communities import (
+    _run_louvain,
     analyze_communities_robust,
     check_community_distribution,
     get_community_partition,
@@ -55,6 +56,25 @@ def mock_abstract_data():
         paper_to_text[f"P{i}"] = "machine learning neural network data"
         
     return author_to_papers, paper_to_text
+
+
+# =============================================================================
+# LOUVAIN HELPER (direct unit test)
+# =============================================================================
+
+def test_run_louvain_barbell():
+    """
+    Verify _run_louvain returns a partition with expected community structure.
+    Barbell(5, 0) has two cliques of 5 connected by one edge; Louvain should find 2 communities.
+    """
+    G = nx.barbell_graph(5, 0)
+    partition = _run_louvain(G, seed=0)
+    assert isinstance(partition, dict)
+    assert len(partition) == G.number_of_nodes()
+    communities = list(set(partition.values()))
+    assert len(communities) == 2
+    sizes = sorted((sum(1 for n, c in partition.items() if c == cid) for cid in communities), reverse=True)
+    assert sizes == [5, 5]
 
 
 # =============================================================================

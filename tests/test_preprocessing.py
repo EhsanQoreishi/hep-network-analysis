@@ -8,7 +8,37 @@ abstracts, and joblib parallelism.
 import os
 import pytest
 
-from src.preprocessing import clean_text, normalize_name, parse_abstracts
+from src.preprocessing import _process_single_abstract, clean_text, normalize_name, parse_abstracts
+
+
+# =============================================================================
+# SINGLE ABSTRACT PARSING (_process_single_abstract)
+# =============================================================================
+
+def test_process_single_abstract_valid_file(tmp_path):
+    """
+    Verify _process_single_abstract returns (paper_id, authors_list, cleaned_text) for a valid .abs-like file.
+    """
+    content = "Authors: Albert Einstein, Marie Curie\nComments: 5 pages\n\n\\\\ The abstract text about physics and gravity."
+    path = tmp_path / "9501234.abs"
+    path.write_text(content, encoding="utf-8")
+
+    result = _process_single_abstract(str(path), "9501234.abs")
+    assert result is not None
+    paper_id, authors_list, cleaned_text = result
+    assert paper_id == "9501234"
+    assert "A. Einstein" in authors_list
+    assert "M. Curie" in authors_list
+    assert "abstract" in cleaned_text
+    assert "physics" in cleaned_text
+
+
+def test_process_single_abstract_no_authors_no_text_returns_none(tmp_path):
+    """When file has no authors and no usable abstract text, _process_single_abstract returns None."""
+    content = "Title: Empty\n\\\\"
+    path = tmp_path / "empty.abs"
+    path.write_text(content, encoding="utf-8")
+    assert _process_single_abstract(str(path), "empty.abs") is None
 
 
 # =============================================================================
