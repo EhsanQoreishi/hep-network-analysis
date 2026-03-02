@@ -1,132 +1,167 @@
-# High-Energy Physics Network Analysis (HEP-Th)
+# HEP-Th Multiplex Network Analysis
 
-A computational physics project analyzing the structure, dynamics, and social properties of the ArXiv High-Energy Physics Theory (HEP-Th) citation network.
+A reproducible pipeline for building and analyzing a **two-layer author multiplex** from the arXiv High-Energy Physics Theory (HEP-Th) corpus: a **social layer** (undirected weighted co-authorship) and an **intellectual layer** (directed weighted citations) on a shared aligned giant connected component of authors.
 
-This project implements a reproducible pipeline to Extract, Transform, and Load (ETL) raw arXiv data, construct multi-layer networks (citation and co-authorship), and apply statistical mechanics metrics (Power Laws, Spectral Entropy) to understand scientific collaboration.
+The code parses abstract files and citation edges, constructs both networks, aligns them to a common author set, restricts to the GCC, and runs single-layer topology, cross-layer coupling, null-model comparison, Louvain community detection with TF-IDF semantics, and physics-inspired diagnostics (spectral entropy, robustness, power-law fits). All results are written to `results/` and logged under `logs/`.
 
-## Network Visualization
+---
 
-Below is a preview of the **Giant Component** of the co-authorship network.
-*(Click the image to open the full interactive visualization)*
+## Network visualization
 
-[![Interactive Graph Preview](results/map_preview.png)](https://EhsanQoreishi.github.io/hep-network-analysis/results/interactive_map.html)
+The **giant component** of the co-authorship network can be explored interactively:
 
+**[View interactive network map](https://ehsanqoreishi.github.io/hep-network-analysis/results/interactive_map.html)**
 
-The network exhibits an exceptionally well-defined partitioning into distinct research clusters.
-* **Louvain Algorithm**: This achieved a high average modularity of $Q = 0.7732$, where a value above 0.3 typically indicates significant community structure.
-* **Stability Analysis**: The stability was confirmed by an Average Adjusted Rand Index (ARI) of **0.6191**, indicating the community structure is highly robust across different computational runs.
-* **Semantic Validation**: Topological clusters were mapped to specific sub-fields using keyword metadata. 
-* **Small-World Properties**: The network features a high Average Clustering Coefficient of **0.4370** and an Average Path Length of **4.82**, ensuring information can flow rapidly through a dense web of local collaborations.
+The map shows the top 500 authors by degree, colored by Louvain community. On the full HEP-Th run (see `logs/run_info.log`): average modularity **Q ≈ 0.77** (social) with stability **ARI ≈ 0.61**, average clustering **⟨C⟩ ≈ 0.437** (social) and **≈ 0.081** (citation, directed), and mean co-authorship path length **≈ 3.23** hops (weighted **≈ 1.39**).
 
+---
 
 ## Features
 
-* **Data Parsing**: Custom ETL pipeline to parse unstructured `.abs` abstract files and edge lists.
-* **Network Construction**: Builds both **Citation** (Directed) and **Co-authorship** (Undirected/Weighted) graphs.
-* **Physics Analysis**:
-    * **Scale-Free Dynamics**: Statistical fitting of degree distributions to Power Law ($P(k) \sim k^{-\gamma}$).
-    * **Spectral Properties**: Computation of Von Neumann Entropy and Algebraic Connectivity ($\lambda_2$) using the Graph Laplacian.
-    * **Robustness**: Simulation of random failures vs. targeted attacks (percolation theory).
-* **Performance Optimization**:
-    * **Parallel Computing**: Uses `joblib` and `Snakemake` threads to parallelize community detection and file parsing.
-    * **JIT Compilation**: Integrating `Numba` to accelerate heavy mathematical correlations.
-    * **Algorithmic Efficiency**: Optimized graph filtering using `heapq` and vector-based Pandas operations.
-* **Automation**: Full workflow managed by **Snakemake**.
+- **ETL**: Parse `.abs` abstract files and citation edge list; extract author lists and abstract text; normalize author names.
+- **Two layers**: Co-authorship via bipartite projection (B·Bᵀ); citation via paper→author expansion and aggregation. Edge lengths ℓ = 1/w for distance-based metrics.
+- **Alignment & GCC**: Intersect author sets, restrict to the giant connected component of the aligned social layer; all analysis on this core.
+- **Single-layer topology**: Density (undirected/directed), clustering, transitivity; strength–degree scaling (β); power-law degree fits; centrality (betweenness, closeness, PageRank).
+- **Cross-layer**: Spearman correlation co-authorship degree vs citation in-strength; citation PageRank vs social betweenness; shortest-path analysis (citation pairs in social layer, hops and weighted).
+- **Null models**: Degree-preserving random graphs (double-edge swap); Z-score of observed vs null clustering.
+- **Communities**: Louvain with multi-run stability (ARI); community size distribution; TF-IDF keywords for top communities.
+- **Physics-style metrics**: Normalized Laplacian spectrum, von Neumann entropy, algebraic connectivity; robustness (random vs targeted removal); configuration-model clustering comparison.
+- **Automation**: Snakemake workflow; optional parallel jobs via CLI (`--jobs`); logging to `logs/run_info.log` and `logs/run_debug.log`.
 
-## 📂 Project Structure
+---
 
-    .
-    ├── data/                   # Raw datasets
-    ├── logs/                   # Execution logs
-    ├── results/                # Generated scientific outputs
-    ├── src/                    # Source code modules
-    │   ├── analysis/           # Physics & Topology logic
-    │   │   ├── communities.py  # Louvain community detection
-    │   │   ├── physics.py      # Power laws & Robustness
-    │   │   └── structural.py   # Centrality & Path metrics
-    │   ├── constants.py        # Project-wide constants
-    │   ├── networks.py         # Graph construction logic
-    │   ├── preprocessing.py    # ETL & Text cleaning
-    │   └── visualization.py    # Plotting & PyVis generation
-    ├── tests/                  # Pytest suite
-    ├── environment.yml         # Conda environment definition
-    ├── main.py                 # CLI entry point
-    └── Snakefile               # Automated workflow pipeline
+## Project structure
+
+Key directories and files after cloning:
+
+```
+.
+├── data/                          # Citation edges (cit-HepTh.txt), abstract tree (cit-HepTh-abstracts/)
+├── logs/                          # run_info.log, run_debug.log, analysis.log
+├── results/                       # PDFs, CSVs, interactive_map.html
+├── src/
+│   ├── analysis/                  # Analysis only (no plotting)
+│   │   ├── communities.py        # Louvain, ARI, TF-IDF
+│   │   ├── physics.py             # Power law, spectral, robustness, null model
+│   │   └── structural.py         # Centrality, multiplex correlation, paths
+│   ├── constants.py               # Stop words and shared constants
+│   ├── networks.py                # Bipartite projection, citation graph
+│   ├── preprocessing.py           # ETL, author normalization
+│   └── visualization.py           # Plotting & PyVis (data from analysis)
+├── tests/                         # Pytest (structural, physics, communities, preprocessing, networks, viz, main)
+├── environment.yml                # Conda environment
+├── LICENSE                        # MIT
+├── main.py                        # CLI orchestrator
+├── pyproject.toml                 # Package and dev dependencies
+└── Snakefile                      # Single rule → all results
+```
+
+---
 
 ## Installation
 
-This project uses **Conda** for environment management.
+**Conda (recommended):**
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/EhsanQoreishi/hep-network-analysis.git
-    cd hep-network-analysis
-    ```
+```bash
+git clone https://github.com/EhsanQoreishi/hep-network-analysis.git
+cd hep-network-analysis
+conda env create -f environment.yml
+conda activate hep_network_analysis
+```
 
-2.  **Create the environment:**
-    ```bash
-    conda env create -f environment.yml
-    ```
+**Optional (CLI entry point and dev tools):**
 
-3.  **Activate the environment:**
-    ```bash
-    conda activate hep_network_analysis
-    ```
+```bash
+pip install -e ".[dev]"
+```
+
+---
 
 ## Usage
 
-### Automated Pipeline (Recommended)
-This project uses **Snakemake** to automate the entire analysis. It checks for file changes and only runs necessary steps.
+**Snakemake (recommended)** — builds all targets in `results/` and logs to `logs/analysis.log`:
 
 ```bash
-snakemake -c4
+snakemake --cores 4
 ```
 
-### Manual Execution (CLI)
-You can also run the script manually with custom arguments:
+**CLI** — same pipeline with explicit paths and job count:
 
 ```bash
-python main.py --data data/cit-HepTh.txt --abstracts data/cit-HepTh-abstracts --output results/
+python main.py --data data/cit-HepTh.txt --abstracts data/cit-HepTh-abstracts --output results --jobs -1
 ```
+
+With debug logging to console:
+
+```bash
+python main.py --data data/cit-HepTh.txt --abstracts data/cit-HepTh-abstracts --output results --jobs -1 --debug
+```
+
+If installed as a package:
+
+```bash
+hep-network-analysis --data data/cit-HepTh.txt --abstracts data/cit-HepTh-abstracts --output results --jobs -1
+```
+
+---
 
 ## Testing
 
-Strict software engineering standards are enforced using `pytest`. The suite covers data cleaning logic, network integrity, and physics calculations.
+Tests use synthetic graphs and temporary directories; the full SNAP dataset is not required.
 
-To run the tests:
+**Run the full suite:**
+
 ```bash
-pytest tests/  
+conda activate hep_network_analysis
+pytest tests/
 ```
 
-## Scientific Results & Interpretation
+**What each test file covers:**
 
-The automated pipeline generated the following physics analysis, validated by the study of the Hep-Th community:
+| File | Responsibility |
+|------|----------------|
+| `tests/test_structural.py` | Global metrics (density, clustering, transitivity), centralities (betweenness, closeness), strength distribution, cross-layer shortest paths, multiplex and degree correlation. Uses small graphs with known analytical properties (triangles, stars, chains). |
+| `tests/test_physics.py` | Power-law fitting, spectral properties, robustness (random/targeted removal), configuration-model null comparison. Uses Barabási–Albert, star, disconnected, and clustered fixtures. |
+| `tests/test_communities.py` | Louvain partition, community size distribution, ARI stability, TF-IDF keywords. Uses barbell and synthetic abstract data. |
+| `tests/test_preprocessing.py` | Author name normalization, LaTeX/text cleaning, `.abs` parsing (authors, text, parallel, edge cases). |
+| `tests/test_networks.py` | Bipartite co-authorship projection, citation edge mapping, self-citation removal, empty/missing data. |
+| `tests/test_visualization.py` | PDF/HTML generation from analysis output; graceful handling of empty data. Does not validate plot aesthetics. |
+| `tests/test_main.py` | CLI smoke test (pipeline runs without full data). |
 
-### 1. Scale-Free Topology:
-![Scale-Free Topology](results/social_layer_power_law_fit.png)
-The degree distribution $P(k)$ of the social layer exhibits a heavy-tailed nature that follows a power-law-like decay.
-* **Observation**: The Power Law fit effectively captures high-degree hubs, while a Log-Normal fit provides a strong approximation for the mid-range degrees.
-* **Parameters**: The Power Law alpha is recorded at **2.9325** with a cutoff ($x_{min}$) of **9.0**.
-* **Implication**: A small fraction of "super-star" authors hold the majority of the network's influence, while the vast majority of researchers possess fewer than 10 connections.
+Fixtures are small graphs or controlled inputs with known mathematical or structural properties so that tests assert actual behavior (e.g. expected density, centrality values, correlation sign) rather than only presence of keys.
 
+---
 
+## Data
 
-### 2. Network Robustness & Percolation
-![Network Robustness](results/network_robustness.png)
-Percolation analysis highlights a distinct vulnerability in the community's architecture:
-* **Random Failures**: The network is highly resilient; even when 20% of the nodes ($f=0.200$) are removed at random, the Giant Component Size ($S$) remains above **0.7**.
-* **Targeted Attacks**: The community is significantly more vulnerable to attacks on high-degree hubs. Removing the top 20% of the most connected authors (such as high-impact leaders like Witten or Vafa) causes the Giant Component to collapse to approximately **0.2**.
+- **Citation edges & abstracts**: [SNAP – ArXiv HEP-Th](https://snap.stanford.edu/data/cit-HepTh.html)
+- Place `cit-HepTh.txt` in `data/` and the abstract tree in `data/cit-HepTh-abstracts/` (or point `--data` and `--abstracts` accordingly).
 
+---
 
+## Scientific results
 
-### 3. Spectral Properties
-![Spectral Properties](results/spectral_density_entropy.png)
-The spectral analysis of the normalized Laplacian matrix characterizes the network's information content:
-* **Algebraic Connectivity ($\lambda_2$)**: The value is **0.009580**, serving as a measure of the network's structural organization.
-* **Entropy**: The **Von Neumann Entropy ($S$)** is **4.50**. This is significantly lower than the maximum possible entropy ($S_{max} \approx 8.45$), indicating that the Hep-Th network is far from a random state and possesses a high degree of order.
+On the aligned GCC (N = 4,658 authors; see `logs/run_info.log`):
 
+- **Global structure**: Social layer sparse (ρ_undir ≈ 0.00127), high clustering (⟨C⟩ ≈ 0.437); citation layer denser (ρ_dir ≈ 0.0087), directed clustering ⟨C⟩ ≈ 0.081, transitivity T ≈ 0.33.
+- **Heterogeneity**: Super-linear strength–degree scaling (β_co ≈ 1.13, β_cit ≈ 1.23); heavy-tailed degree distributions (power-law α in figures and logs).
+- **Cross-layer**: Positive correlation degree vs in-strength (r_S ≈ 0.65); PageRank vs betweenness (r_S ≈ 0.57); citation-linked pairs socially close (mean **3.23** hops, weighted **1.39**).
+- **Null model**: Clustering well above degree-preserving random (high Z-scores).
+- **Communities**: High modularity (Q ≈ 0.77 social); stable across runs (ARI ≈ 0.61); TF-IDF semantics for top communities.
+- **Spectral / robustness**: Laplacian spectrum, von Neumann entropy, algebraic connectivity λ₂, diffusion-time proxy τ; robustness curves under random and targeted removal.
 
+Exact numbers are in **`logs/run_info.log`** (summary) and **`logs/run_debug.log`** (verbose). Figures are in **`results/`**.
 
-## Data Source
+---
 
-* **Citation Network**: [SNAP: ArXiv HEP-TH](https://snap.stanford.edu/data/cit-HepTh.html)
+## Reproducing the full analysis
+
+1. Clone the repo and create the Conda environment (see Installation).
+2. Download HEP-Th data from SNAP; put `cit-HepTh.txt` and the abstract directory in `data/` (or set `DATA_EDGES` / `DATA_ABSTRACTS` in the Snakefile, or use `--data` / `--abstracts`).
+3. Run `snakemake --cores 4` (or `python main.py ...`). All figures and tables in `results/` and the report directory will be produced; logs in `logs/`.
+
+---
+
+## License
+
+MIT (see `LICENSE`).
