@@ -76,22 +76,36 @@ def analyze_power_law(G: nx.Graph, name: str = "Network") -> Dict[str, Any]:
         else:
             logger.info("  -> Verdict: Distribution decays rapidly (No clear hubs).")
 
-        # Precompute PDF curves for visualization (no refit in plotting layer)
-        # powerlaw.Fit(..., discrete=True) returns .pdf(x) as an array (length=data);
-        # we need one scalar per x for plotting, so take .flat[0].
-        x_plot = np.unique(degrees)
+        # Build empirical PDF (no plotting; data only)
+        x_emp = np.unique(degrees)
         _, counts = np.unique(degrees, return_counts=True)
-        pdf_empirical = np.asarray(counts, dtype=float) / len(degrees)
+        y_emp = np.asarray(counts, dtype=float) / len(degrees)
+
+        xmax_pl = getattr(fit.power_law, "xmax", None)
+        trimmed = degrees[degrees >= xmin]
+        if xmax_pl is not None:
+            trimmed = trimmed[trimmed <= xmax_pl]
+        bins = np.unique(trimmed)
+        if len(bins) == 0:
+            bins = np.array([float(xmin)])
+
         try:
-            pdf_power_law = np.array([
-                float(np.atleast_1d(fit.power_law.pdf(x)).flat[0]) for x in x_plot
-            ])
-            pdf_lognormal = np.array([
-                float(np.atleast_1d(fit.lognormal.pdf(x)).flat[0]) for x in x_plot
-            ])
+            y_pl = np.asarray(fit.power_law.pdf(bins), dtype=float).ravel()
+            if len(y_pl) != len(bins):
+                y_pl = np.full_like(bins, np.nan)
+            else:
+                y_pl = np.maximum(y_pl, np.finfo(float).tiny)
         except Exception:
-            pdf_power_law = np.full_like(x_plot, np.nan)
-            pdf_lognormal = np.full_like(x_plot, np.nan)
+            y_pl = np.full_like(bins, np.nan)
+
+        try:
+            y_ln = np.asarray(fit.lognormal.pdf(bins), dtype=float).ravel()
+            if len(y_ln) != len(bins):
+                y_ln = np.full_like(bins, np.nan)
+            else:
+                y_ln = np.maximum(y_ln, np.finfo(float).tiny)
+        except Exception:
+            y_ln = np.full_like(bins, np.nan)
 
         return {
             "alpha": alpha,
@@ -100,10 +114,13 @@ def analyze_power_law(G: nx.Graph, name: str = "Network") -> Dict[str, Any]:
             "compare_p": float(p),
             "degrees": degrees,
             "x_label": x_label,
-            "pdf_x": x_plot,
-            "pdf_empirical": pdf_empirical,
-            "pdf_power_law": pdf_power_law,
-            "pdf_lognormal": pdf_lognormal,
+            "fit": fit,
+            "pdf_x": x_emp,
+            "pdf_empirical": y_emp,
+            "pdf_power_law_x": bins,
+            "pdf_power_law": y_pl,
+            "pdf_lognormal_x": bins,
+            "pdf_lognormal": y_ln,
         }
     except (ValueError, RuntimeError, ZeroDivisionError) as e:
         logger.warning(f"Power law fitting mathematically failed for {name}: {e}")
