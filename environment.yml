@@ -21,3 +21,4 @@ dependencies:
       - powerlaw>=1.5.0
       - python-louvain>=0.16
       - pyvis>=0.3.0
+      - pytest-cov
